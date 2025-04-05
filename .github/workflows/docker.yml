@@ -1,4 +1,4 @@
-name: Docker Build & Push
+name: Build and Push Docker Images
 
 on:
   push:
@@ -6,49 +6,42 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Hardcoded lowercase repository name
-  REPO_NAME: "kanlka/ctf-platform" # Replace with your exact GitHub username/repo in lowercase
-  FRONTEND_IMAGE: "ctf-platform-frontend" # Simplified name
-  BACKEND_IMAGE: "ctf-platform-backend" # Simplified name
+  # Use lowercase version of your EXACT GitHub username
+  REPO_OWNER: "kanlka"  # Must match your GitHub username exactly
+  REPO_NAME: "ctf-platform" 
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: write  # This is crucial
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build and push frontend
-      - name: Build Frontend
+      - name: Build and push frontend
         uses: docker/build-push-action@v3
         with:
           context: ./frontend
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
-            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-          build-args: |
-            VITE_API_URL=http://backend:5000  # For Docker network communication
+            ghcr.io/${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}-frontend:latest
           labels: "app=frontend"
 
-      # Build and push backend
-      - name: Build Backend
+      - name: Build and push backend
         uses: docker/build-push-action@v3
         with:
           context: ./backend
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
-            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ghcr.io/${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}-backend:latest
           labels: "app=backend"
