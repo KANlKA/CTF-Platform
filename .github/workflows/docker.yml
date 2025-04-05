@@ -34,10 +34,12 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./frontend
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
             ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          build-args: |
+            VITE_API_URL=http://backend:5000  # For Docker network communication
           labels: "app=frontend"
 
       # Build and push backend
@@ -45,7 +47,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./backend
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
             ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
