@@ -1,0 +1,24 @@
+/* Animations */
+.cipher-text {
+  animation: fadeIn 1.5s ease-out;
+}
+
+.cipher-line {
+  animation: expand 1s ease-out 0.5s forwards;
+  transform: scaleX(0);
+  transform-origin: center;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes expand {
+  to { transform: scaleX(1); }
+}
+
+/* Button hover effect */
+.explore-btn:hover span:last-child {
+  transform: translateY(0);
+}
