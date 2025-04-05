@@ -2,12 +2,14 @@ name: Docker Build & Push
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   REGISTRY: ghcr.io
-  FRONTEND_IMAGE: ${{ github.repository }}-frontend
-  BACKEND_IMAGE: ${{ github.repository }}-backend
+  # Hardcoded lowercase repository name
+  REPO_NAME: "kanlka/ctf-platform" # Replace with your exact GitHub username/repo in lowercase
+  FRONTEND_IMAGE: "ctf-platform-frontend" # Simplified name
+  BACKEND_IMAGE: "ctf-platform-backend" # Simplified name
 
 jobs:
   build-and-push:
@@ -31,16 +33,20 @@ jobs:
       - name: Build Frontend
         uses: docker/build-push-action@v3
         with:
-          context: ./frontend  # Path to frontend Dockerfile
+          context: ./frontend
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           labels: "app=frontend"
 
       # Build and push backend
       - name: Build Backend
         uses: docker/build-push-action@v3
         with:
-          context: ./backend  # Path to backend Dockerfile
+          context: ./backend
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
           labels: "app=backend"
