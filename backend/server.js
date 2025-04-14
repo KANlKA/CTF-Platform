@@ -14,22 +14,61 @@ app.use(cors({
   origin: 'http://localhost:5173',
   credentials: true
 }));
-
+app.use(cors({
+  origin: 'http://localhost:5173', // Your frontend URL
+  methods: ['POST', 'GET', 'OPTIONS'], // Allowed methods
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // If using cookies
+}));
 // Essential middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ctf-platform')
-  .then(() => console.log('MongoDB Connected'))
-  .catch(err => console.log('MongoDB Connection Error:', err));
-
-// Rate limiting for challenge creation
-const createChallengeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 3 // Limit each user to 3 challenge creations per window
+app.use((err, req, res, next) => {
+  console.error('Unhandled Error:', {
+    path: req.path,
+    method: req.method,
+    body: req.body,
+    error: err.stack || err
+  });
+  res.status(500).json({
+    error: 'UNHANDLED_ERROR',
+    message: 'An unexpected error occurred'
+  });
 });
+const validateChallengeSubmission = [
+  check('flag')
+    .notEmpty().withMessage('Flag is required')
+    .isString().withMessage('Flag must be a string')
+    .trim()
+    .escape(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'VALIDATION_ERROR',
+        message: errors.array()[0].msg 
+      });
+    }
+    next();
+  }
+];
+const validateChallenge = async (req, res, next) => {
+  try {
+    const challenge = await Challenge.findById(req.params.id).populate('author');
+    if (!challenge) {
+      return res.status(404).json({
+        error: 'CHALLENGE_NOT_FOUND',
+        message: 'Challenge not found'
+      });
+    }
 
+    // Attach challenge to request for later use
+    req.challenge = challenge;
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -43,6 +82,16 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+// Rate limiting for challenge creation
+const createChallengeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3 // Limit each user to 3 challenge creations per window
+});
+const submitLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 requests per window
+  message: 'Too many submissions, please try again later'
+});
 
 // Helper Functions
 const normalizeFlag = (flag) => flag.trim().toLowerCase();
@@ -50,6 +99,48 @@ const calculatePoints = (difficulty) => {
   const pointsMap = { easy: 100, medium: 200, hard: 300 };
   return pointsMap[difficulty] || 100;
 };
+// MongoDB connection
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ctf-platform')
+  .then(async () => {
+    console.log('MongoDB Connected');
+    await migrateChallenges();
+  })
+  .catch(err => console.log('MongoDB Connection Error:', err));
+
+async function migrateChallenges() {
+  try {
+    // Find or create system user
+    let systemUser = await User.findOne({ username: 'system' });
+    if (!systemUser) {
+      systemUser = new User({
+        username: 'system',
+        email: 'system@ctf-platform.com',
+        password: await bcrypt.hash('system_password', 10),
+        role: 'system'
+      });
+      await systemUser.save();
+    }
+
+    // Find challenges without valid authors
+    const challenges = await Challenge.find({
+      $or: [
+        { author: { $exists: false } },
+        { author: null },
+        { author: { $type: 'string' } }
+      ]
+    });
+
+    if (challenges.length > 0) {
+      console.log(`Migrating ${challenges.length} challenges to system user`);
+      await Challenge.updateMany(
+        { _id: { $in: challenges.map(c => c._id) } },
+        { $set: { author: systemUser._id } }
+      );
+    }
+  } catch (err) {
+    console.error('Migration error:', err);
+  }
+}
 
 // Schemas
 const UserSchema = new mongoose.Schema({
@@ -65,15 +156,53 @@ const UserSchema = new mongoose.Schema({
 });
 
 const ChallengeSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  description: { type: String, required: true },
-  category: { type: String, required: true },
-  difficulty: { type: String, enum: ['easy', 'medium', 'hard'], required: true },
-  points: { type: Number, required: true },
-  flag: { type: String, required: true },
-  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  solves: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now }
+  title: { 
+    type: String, 
+    required: true,
+    minlength: 5,
+    maxlength: 100
+  },
+  description: { 
+    type: String, 
+    required: true,
+    minlength: 20
+  },
+  category: { 
+    type: String, 
+    required: true 
+  },
+  difficulty: { 
+    type: String, 
+    enum: ['easy', 'medium', 'hard'], 
+    required: true 
+  },
+  points: { 
+    type: Number, 
+    required: true,
+    min: 0
+  },
+  flag: { 
+    type: String, 
+    required: true,
+    minlength: 3
+  },
+  author: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User',
+    required: true 
+  },
+  solves: { 
+    type: Number, 
+    default: 0,
+    min: 0 
+  },
+  createdAt: { 
+    type: Date, 
+    default: Date.now 
+  }
+}, {
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 const User = mongoose.model('User', UserSchema);
@@ -273,7 +402,8 @@ app.post('/api/challenges', createChallengeLimiter, authenticateToken, [
     const challenge = new Challenge({
       ...req.body,
       points: calculatePoints(req.body.difficulty),
-      author: req.user.id
+      author: req.user.id, // Ensure this is set
+      solves: 0 // Explicitly set initial solves
     });
 
     await challenge.save();
@@ -308,42 +438,115 @@ app.get('/api/challenges/difficulty/:level', async (req, res) => {
   }
 });
 
-app.post('/api/challenges/:id/submit', authenticateToken, async (req, res) => {
-  try {
-    const challenge = await Challenge.findById(req.params.id);
-    if (!challenge) {
-      return res.status(404).json({ message: 'Challenge not found' });
-    }
-    
-    // Prevent users from solving their own challenges
-    if (challenge.author.equals(req.user.id)) {
-      return res.status(400).json({ message: 'You cannot solve your own challenge' });
-    }
-
-    if (req.body.flag?.trim().toLowerCase() === challenge.flag.toLowerCase()) {
-      const user = await User.findById(req.user.id);
+app.post('/api/challenges/:id/submit', 
+  authenticateToken,
+  submitLimiter,
+  validateChallengeSubmission,
+  validateChallenge,
+  async (req, res) => {
+    try {
+      const challenge = await Challenge.findById(req.params.id).populate('author');
       
-      if (!user.solvedChallenges.includes(req.params.id)) {
-        user.solvedChallenges.push(req.params.id);
-        user.points += challenge.points;
-        await user.save();
+      // Normalize both flags for comparison
+      const submittedFlag = req.body.flag.trim().toLowerCase();
+      const correctFlag = challenge.flag.trim().toLowerCase();
+
+      console.log('Submitted:', submittedFlag);
+      console.log('Expected:', correctFlag);
+
+      if (submittedFlag !== correctFlag) {
+        return res.status(400).json({
+          error: 'INCORRECT_FLAG',
+          message: 'Incorrect flag submitted',
+          debug: {
+            submitted: submittedFlag,
+            expected: correctFlag
+          }
+        });
+      }
+      // 2. Validate challenge exists
+      if (!challenge) {
+        return res.status(404).json({
+          error: 'CHALLENGE_NOT_FOUND',
+          message: 'Challenge not found'
+        });
+      }
+
+      // 3. Handle challenges without valid author
+      if (!challenge.author || !challenge.author._id) {
+        // Option 1: Reject submission
+        // return res.status(400).json({
+        //   error: 'INVALID_CHALLENGE_AUTHOR',
+        //   message: 'This challenge has no valid author assigned'
+        // });
+
+        // Option 2: Assign to system user and continue
+        const systemUser = await User.findOne({ username: 'system' }) || 
+                          await User.findOne({ role: 'admin' });
         
-        challenge.solves += 1;
+        if (!systemUser) {
+          return res.status(400).json({
+            error: 'SYSTEM_ERROR',
+            message: 'Cannot process this challenge'
+          });
+        }
+
+        challenge.author = systemUser._id;
         await challenge.save();
       }
-      
-      return res.json({ 
+
+      // 4. Verify user isn't submitting to their own challenge
+      if (challenge.author._id.toString() === req.user.id.toString()) {
+        return res.status(400).json({
+          error: 'SELF_SOLVE_ATTEMPT',
+          message: 'You cannot solve your own challenge'
+        });
+      }
+
+      // 5. Validate flag
+      const isCorrect = req.body.flag.trim().toLowerCase() === 
+                       challenge.flag.toLowerCase();
+
+      if (!isCorrect) {
+        return res.status(400).json({
+          error: 'INCORRECT_FLAG',
+          message: 'Incorrect flag submitted'
+        });
+      }
+
+      // 6. Check if already solved
+      const user = await User.findById(req.user.id);
+      if (user.solvedChallenges.includes(challenge._id)) {
+        return res.json({
+          success: true,
+          message: 'Already solved!',
+          points: 0
+        });
+      }
+
+      // 7. Update records
+      user.solvedChallenges.push(challenge._id);
+      user.points += challenge.points;
+      await user.save();
+
+      challenge.solves += 1;
+      await challenge.save();
+
+      return res.json({
         success: true,
-        message: 'Flag correct!', 
-        points: challenge.points 
+        message: 'Flag correct! Challenge solved!',
+        points: challenge.points
+      });
+
+    } catch (err) {
+      console.error('Submission Error:', err);
+      return res.status(500).json({
+        error: 'SERVER_ERROR',
+        message: 'Internal server error'
       });
     }
-    
-    return res.status(400).json({ message: 'Incorrect flag' });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
   }
-});
+);
 
 // Todo List Routes
 app.get('/api/user/todo', authenticateToken, async (req, res) => {

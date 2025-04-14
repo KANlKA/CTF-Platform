@@ -23,6 +23,7 @@ export default function Challenges({ user }) {
   const [flag, setFlag] = useState('');
   const [message, setMessage] = useState('');
   const [todoList, setTodoList] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchChallenges = async () => {
@@ -58,23 +59,54 @@ export default function Challenges({ user }) {
 
   const submitFlag = async () => {
     try {
-      if (!selectedChallenge) return;
-      
-      const res = await api.post(`/api/challenges/${selectedChallenge._id}/submit`, { flag });
+      setIsSubmitting(true);
+      setMessage('');
+  
+      console.log('Submitting flag:', flag); // Log the flag being submitted
+      console.log('For challenge:', selectedChallenge?._id); // Log the challenge ID
+  
+      if (!selectedChallenge) {
+        setMessage('No challenge selected');
+        return;
+      }
+  
+      if (!flag.trim()) {
+        setMessage('Please enter a flag');
+        return;
+      }
+  
+      const res = await api.post(
+        `/api/challenges/${selectedChallenge._id}/submit`,
+        { flag: flag.trim() }
+      );
+  
+      console.log('Submission response:', res.data); // Log the response
       setMessage(res.data.message);
       
       if (res.data.success) {
-        const endpoint = difficulty === 'all' 
-          ? '/api/challenges' 
-          : `/api/challenges/difficulty/${difficulty}`;
-        const updatedChallenges = await api.get(endpoint);
-        setChallenges(updatedChallenges.data || []);
+        // Refresh data
+        const [challengesRes, userRes] = await Promise.all([
+          api.get(difficulty === 'all' ? '/api/challenges' : `/api/challenges/difficulty/${difficulty}`),
+          api.get('/api/profile')
+        ]);
+        
+        setChallenges(challengesRes.data || []);
+        setUser(userRes.data);
+        setFlag('');
       }
     } catch (err) {
-      setMessage(err.response?.data?.message || 'Submission failed. Please try again.');
+      console.error('Full submission error:', err); // Log entire error object
+      console.error('Error response:', err.response); // Log response if exists
+      
+      const errorMessage = err.response?.data?.message || 
+                          err.message || 
+                          'Submission failed. Please try again.';
+      setMessage(errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
+  
   const addToTodoList = async () => {
     try {
       const response = await api.post('/api/user/todo', { 
@@ -294,12 +326,28 @@ export default function Challenges({ user }) {
                     onChange={(e) => setFlag(e.target.value)}
                   />
                   <button 
-                    onClick={submitFlag}
-                    className="bg-[#64ffda] text-[#0a192f] px-4 rounded-r flex items-center hover:bg-[#48aff0] transition-colors"
-                  >
-                    <FlagIcon className="w-4 h-4 mr-1" />
-                    Submit
-                  </button>
+  onClick={submitFlag}
+  disabled={isSubmitting}
+  className={`bg-[#64ffda] text-[#0a192f] px-4 rounded-r flex items-center hover:bg-[#48aff0] transition-colors ${
+    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+  }`}
+>
+  {isSubmitting ? (
+    <>
+      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-[#0a192f]" 
+           xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Verifying...
+    </>
+  ) : (
+    <>
+      <FlagIcon className="w-4 h-4 mr-1" />
+      Submit Flag
+    </>
+  )}
+</button>
                 </div>
                 {message && (
                   <p className={`mt-2 text-sm ${

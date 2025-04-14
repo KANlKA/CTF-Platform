@@ -1,32 +1,10 @@
 version: '3.8'
-
 services:
   frontend:
-    image: ghcr.io/kanlka/ctf-platform-frontend:latest  # Match your GHCR image
+    build: ./frontend
     ports:
-      - "3000:80"
-    environment:
-      - VITE_API_URL=http://backend:5000  # Use Docker service name
-    depends_on:
-      - backend
-
+      - "3000:3000"
   backend:
-    image: ghcr.io/kanlka/ctf-platform-backend:latest  # Match your GHCR image
+    build: ./backend
     ports:
       - "5000:5000"
-    environment:
-      - NODE_ENV=production
-      - MONGODB_URI=mongodb://mongo:27017/ctfdb  # If using MongoDB
-    depends_on:
-      - mongo
-
-  mongo:  # Only include if you need MongoDB
-    image: mongo:6
-    volumes:
-      - mongo_data:/data/db
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=securepassword
-
-volumes:
-  mongo_data:  # Only include if using MongoDB

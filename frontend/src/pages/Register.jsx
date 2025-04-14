@@ -1,50 +1,80 @@
-import React from 'react'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { KeyIcon } from '@heroicons/react/24/outline'
-import api from '../api'
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { KeyIcon } from '@heroicons/react/24/outline';
+import api from '../api';
 
 export default function Register() {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: ''
-  })
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
-  const navigate = useNavigate()
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const validateForm = () => {
+    if (formData.username.trim().length < 3) {
+      setError('Username must be at least 3 characters');
+      return false;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
+      setError('Please enter a valid email');
+      return false;
+    }
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return false;
+    }
+    return true;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
     setError('');
+    
+    if (!validateForm()) return;
+
+    setIsLoading(true);
     
     try {
       // 1. Register user
-      await api.post('/api/register', {
+      const registerResponse = await api.post('/api/register', {
         username: formData.username.trim(),
         email: formData.email.trim(),
         password: formData.password
       });
-  
-      // 2. Auto-login after registration
-      const loginRes = await api.post('/api/login', {
+
+      // 2. Auto-login after successful registration
+      const loginResponse = await api.post('/api/login', {
         username: formData.username.trim(),
         password: formData.password
       });
-  
-      // 3. Store auth data
-      localStorage.setItem('token', loginRes.data.token);
-      localStorage.setItem('user', JSON.stringify(loginRes.data.user));
+
+      // 3. Store authentication data
+      localStorage.setItem('token', loginResponse.data.token);
+      localStorage.setItem('user', JSON.stringify(loginResponse.data.user));
       
-      // 4. REDIRECT TO HOME PAGE - ONLY THIS LINE CHANGED
+      // 4. Redirect to home
       navigate('/', { replace: true });
-      
+
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      const errorMessage = err.message || 
+                         err.response?.data?.message || 
+                         'Registration failed. Please try again.';
+      setError(errorMessage);
+      console.error('Registration error:', err);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   return (
@@ -68,10 +98,11 @@ export default function Register() {
             <label className="block text-gray-400 mb-2 text-sm">Codename</label>
             <input
               type="text"
+              name="username"
               placeholder="Choose agent codename"
               className="w-full p-3 bg-[#0a192f] text-[#ccd6f6] rounded border border-[#1e2a47] focus:border-[#64ffda] focus:outline-none"
               value={formData.username}
-              onChange={(e) => setFormData({...formData, username: e.target.value})}
+              onChange={handleChange}
               required
               minLength={3}
             />
@@ -81,10 +112,11 @@ export default function Register() {
             <label className="block text-gray-400 mb-2 text-sm">Secure Channel</label>
             <input
               type="email"
+              name="email"
               placeholder="Enter secure comms address"
               className="w-full p-3 bg-[#0a192f] text-[#ccd6f6] rounded border border-[#1e2a47] focus:border-[#64ffda] focus:outline-none"
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              onChange={handleChange}
               required
             />
           </div>
@@ -93,10 +125,11 @@ export default function Register() {
             <label className="block text-gray-400 mb-2 text-sm">Encryption Key</label>
             <input
               type="password"
+              name="password"
               placeholder="Create secure passphrase"
               className="w-full p-3 bg-[#0a192f] text-[#ccd6f6] rounded border border-[#1e2a47] focus:border-[#64ffda] focus:outline-none"
               value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              onChange={handleChange}
               required
               minLength={6}
             />
@@ -129,5 +162,5 @@ export default function Register() {
         </form>
       </div>
     </div>
-  )
+  );
 }

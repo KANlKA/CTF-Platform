@@ -1,32 +1,35 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/',  
+  baseURL: 'http://localhost:5000', // Explicit backend URL
   withCredentials: true,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   }
 });
 
-api.interceptors.request.use((config) => {
+// Add this to your api.js
+api.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
+}, error => {
+  return Promise.reject(error);
 });
 
-// Add response interceptor
+// In your api.js
 api.interceptors.response.use(
   response => response,
   error => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized errors
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+    console.error('API Error:', error);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
     }
     return Promise.reject(error);
   }
 );
-
 export default api;
