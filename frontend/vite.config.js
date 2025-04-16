@@ -13,24 +13,17 @@ export default defineConfig({
     }
   },
   build: {
-    chunkSizeWarningLimit: 1000, // Increase warning threshold (optional)
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
+      external: [], // Keep empty to ensure dependencies aren't externalized
       output: {
         manualChunks: {
+          monaco: ['@monaco-editor/react', 'monaco-editor'], // Move monaco to its own chunk
           xterm: ['xterm', 'xterm-addon-fit'],
           react: ['react', 'react-dom'],
-          vendor: ['lodash', 'axios'] // Add other large dependencies
+          vendor: ['lodash', 'axios']
         }
       }
     }
-  },
-  optimizeDeps: {
-    include: [
-      'xterm',
-      'xterm-addon-fit',
-      '@monaco-editor/react',
-      'monaco-editor',
-    ],
-    exclude: ['xterm/css/xterm.css']
   }
 });
