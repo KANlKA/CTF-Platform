@@ -13,25 +13,24 @@ export default defineConfig({
     }
   },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1000, // Increase warning threshold (optional)
     rollupOptions: {
-      external: ['@monaco-editor/react'], // <-- ✅ Prevents Vite from externalizing monaco
       output: {
         manualChunks: {
           xterm: ['xterm', 'xterm-addon-fit'],
           react: ['react', 'react-dom'],
-          vendor: ['lodash', 'axios']
+          vendor: ['lodash', 'axios'] // Add other large dependencies
         }
       }
     }
   },
   optimizeDeps: {
-  include: [
-    'xterm',
-    'xterm-addon-fit',
-    '@monaco-editor/react',
-    'monaco-editor' // Add this if not already there
-  ],
-  exclude: ['xterm/css/xterm.css']
-}
+    include: [
+      'xterm',
+      'xterm-addon-fit',
+      '@monaco-editor/react',
+      'monaco-editor',
+    ],
+    exclude: ['xterm/css/xterm.css']
+  }
 });
