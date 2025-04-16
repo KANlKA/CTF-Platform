@@ -6,8 +6,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  FRONTEND_IMAGE: ${{ github.repository }}-frontend
-  BACKEND_IMAGE: ${{ github.repository }}-backend
+  REPO_OWNER: kanlka  # Your lowercase GitHub username
+  REPO_NAME: ctf-platform  # Your lowercase repo name
+  FRONTEND_IMAGE: ${{ env.REPO_NAME }}-frontend
+  BACKEND_IMAGE: ${{ env.REPO_NAME }}-backend
 
 jobs:
   build-and-push:
@@ -33,23 +35,21 @@ jobs:
           path: |
             **/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-      # Build and push frontend
+
       - name: Build Frontend
         uses: docker/build-push-action@v3
         with:
-          context: ./frontend  # Path to frontend Dockerfile
+          context: ./frontend
+          dockerfile: ./frontend/Dockerfile  # Explicitly reference the Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+          tags: ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/${{ env.FRONTEND_IMAGE }}:latest
           labels: "app=frontend"
 
-      # Build and push backend
       - name: Build Backend
         uses: docker/build-push-action@v3
         with:
-
           context: ./backend
-          push: true
-          tags: |
-            ghcr.io/${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}-backend:latest
+          dockerfile: ./backend/Dockerfile  # Explicitly reference the Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ${{ env.REGISTRY }}/${{ env.REPO_OWNER }}/${{ env.BACKEND_IMAGE }}:latest
           labels: "app=backend"
-
