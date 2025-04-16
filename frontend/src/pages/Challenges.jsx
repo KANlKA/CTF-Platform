@@ -1,5 +1,4 @@
-import React from 'react'
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import api from '../api';
 import { 
   ArrowRightIcon,
@@ -17,9 +16,6 @@ import {
   CubeIcon,
   TrophyIcon
 } from '@heroicons/react/24/outline';
-import Editor from '@monaco-editor/react';
-import { Terminal } from 'xterm';
-import 'xterm/css/xterm.css';
 
 export default function Challenges({ user: initialUser }) {
   const [challenges, setChallenges] = useState([]);
@@ -33,12 +29,17 @@ export default function Challenges({ user: initialUser }) {
   const [todoList, setTodoList] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [user, setUser] = useState(initialUser);
-  const [code, setCode] = useState('');
-  const [terminal, setTerminal] = useState(null);
   const [output, setOutput] = useState('');
   const [dailyPoints, setDailyPoints] = useState(0);
   const [answer, setAnswer] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+  const [isTerminalInitialized, setIsTerminalInitialized] = useState(false);
+  const [terminalInput, setTerminalInput] = useState('');
+  const [terminalHistory, setTerminalHistory] = useState([]);
+  
+  const terminalRef = useRef(null);
+  const fitAddonRef = useRef(null);
+  const terminalContainerRef = useRef(null);
 
   // Update local user state when prop changes
   useEffect(() => {
@@ -47,31 +48,6 @@ export default function Challenges({ user: initialUser }) {
       setTodoList(initialUser.todoList);
     }
   }, [initialUser]);
-
-  // Initialize terminal
-  useEffect(() => {
-    if (selectedChallenge && !terminal) {
-      const newTerminal = new Terminal({
-        theme: {
-          background: '#0f172a',
-          foreground: '#e2e8f0',
-          cursor: '#38bdf8'
-        },
-        fontSize: 14,
-        fontFamily: 'monospace',
-        cursorBlink: true,
-        rows: 15
-      });
-      newTerminal.open(document.getElementById('terminal'));
-      newTerminal.write('$ Terminal initialized - ready for commands\r\n');
-      setTerminal(newTerminal);
-      
-      // Cleanup
-      return () => {
-        newTerminal.dispose();
-      };
-    }
-  }, [selectedChallenge]);
 
   // Track daily points
   useEffect(() => {
@@ -109,26 +85,119 @@ export default function Challenges({ user: initialUser }) {
       return todoList;
     }
     if (activeTab === 'solved' && user?.solvedChallenges) {
-      return challenges.filter(challenge => 
-        user.solvedChallenges.includes(challenge._id)
-      );
+      // Updated to handle both array of strings and array of objects
+      return challenges.filter(challenge => {
+        if (user.solvedChallenges.length === 0) return false;
+        // Handle case where solvedChallenges is an array of strings (legacy)
+        if (typeof user.solvedChallenges[0] === 'string') {
+          return user.solvedChallenges.includes(challenge._id);
+        }
+        // Handle case where solvedChallenges is an array of objects
+        return user.solvedChallenges.some(solved => 
+          solved.challengeId === challenge._id || solved._id === challenge._id
+        );
+      });
     }
     return [];
   })();
 
-  const openChallengeModal = (challenge) => {
+
+  const openChallengeModal = async (challenge) => {
     setSelectedChallenge(challenge);
     setShowHint(false);
     setFlag('');
     setMessage('');
     setAnswer('');
     setOutput('');
-    setCode(challenge.initialCode || '// Write your code here\n// Click "Run Code" to execute');
+    setTerminalInput('');
+    setTerminalHistory([]);
     
-    // Reset terminal
-    if (terminal) {
-      terminal.reset();
-      terminal.write('$ Ready to execute code...\r\n');
+    // Dynamically import terminal components
+    if (!isTerminalInitialized) {
+      try {
+        const { Terminal } = await import('xterm');
+        const { FitAddon } = await import('xterm-addon-fit');
+        
+        const terminal = new Terminal({
+          theme: {
+            background: '#0f172a',
+            foreground: '#e2e8f0',
+            cursor: '#38bdf8'
+          },
+          fontSize: 14,
+          fontFamily: 'monospace',
+          cursorBlink: true,
+          rows: 15
+        });
+        
+        const fitAddon = new FitAddon();
+        terminal.loadAddon(fitAddon);
+        
+        terminalRef.current = terminal;
+        fitAddonRef.current = fitAddon;
+        setIsTerminalInitialized(true);
+        
+        // Open terminal after a small delay to ensure DOM is ready
+        setTimeout(() => {
+          if (terminalRef.current && terminalContainerRef.current) {
+            terminalRef.current.open(terminalContainerRef.current);
+            fitAddonRef.current.fit();
+            terminalRef.current.write('$ Terminal initialized - ready for commands\r\n');
+            terminalRef.current.write('$ ');
+            
+            // Add keyboard event listener for terminal input
+            terminalRef.current.onData(data => {
+              if (data === '\r') { // Enter key
+                const input = terminalInput.trim();
+                if (input) {
+                  setTerminalHistory(prev => [...prev, input]);
+                  handleTerminalCommand(input);
+                  setTerminalInput('');
+                }
+                terminalRef.current.write('\r\n$ ');
+              } else if (data === '\x7f') { // Backspace
+                if (terminalInput.length > 0) {
+                  terminalRef.current.write('\b \b');
+                  setTerminalInput(prev => prev.slice(0, -1));
+                }
+              } else if (data >= String.fromCharCode(0x20) && data <= String.fromCharCode(0x7E)) {
+                // Printable characters
+                terminalRef.current.write(data);
+                setTerminalInput(prev => prev + data);
+              }
+            });
+          }
+        }, 50);
+      } catch (err) {
+        console.error('Failed to initialize terminal:', err);
+      }
+    } else {
+      // Reset existing terminal
+      if (terminalRef.current) {
+        terminalRef.current.reset();
+        terminalRef.current.write('$ Ready to execute commands...\r\n');
+        terminalRef.current.write('$ ');
+      }
+    }
+  };
+
+  const handleTerminalCommand = async (command) => {
+    if (!command) return;
+    
+    try {
+      terminalRef.current.write('\r\nExecuting...\r\n');
+      
+      const response = await api.post('/api/execute', {
+        challengeId: selectedChallenge._id,
+        command: command
+      });
+      
+      terminalRef.current.write(response.data.output + '\r\n');
+      setOutput(response.data.output);
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to execute command';
+      terminalRef.current.write('\r\nError: ' + errorMsg + '\r\n');
+      setOutput('Error: ' + errorMsg);
     }
   };
 
@@ -137,28 +206,30 @@ export default function Challenges({ user: initialUser }) {
   };
 
   const runCode = async () => {
-    if (!terminal) return;
+    if (!terminalRef.current || !answer.trim()) return;
     
-    terminal.write('\r\n$ Executing code...\r\n');
+    terminalRef.current.write(`\r\n$ Executing: ${answer}\r\n`);
     
     try {
-      // Simulate execution with a loading effect
+      // Show loading indicator
+      const dots = ['.', '..', '...'];
+      let dotCount = 0;
       const loadingInterval = setInterval(() => {
-        terminal.write('.');
+        terminalRef.current.write(dots[dotCount % 3] + '\r');
+        dotCount++;
       }, 300);
       
-      // In a real app, you would send this to your backend for execution
       const response = await api.post('/api/execute', {
-        code,
-        language: selectedChallenge.language || 'javascript'
+        challengeId: selectedChallenge._id,
+        command: answer.trim()
       });
       
       clearInterval(loadingInterval);
-      terminal.write('\r\n' + response.data.output + '\r\n');
-      terminal.write('$ Execution complete. Ready for next command.\r\n');
+      terminalRef.current.write('\r\n' + response.data.output + '\r\n');
+      terminalRef.current.write('$ Command complete. Ready for next command.\r\n');
       setOutput(response.data.output);
     } catch (err) {
-      terminal.write('\r\nError: ' + (err.response?.data?.error || 'Failed to execute') + '\r\n');
+      terminalRef.current.write('\r\nError: ' + (err.response?.data?.error || 'Failed to execute') + '\r\n');
       setOutput('Error: ' + (err.response?.data?.error || 'Failed to execute'));
     }
   };
@@ -175,26 +246,27 @@ export default function Challenges({ user: initialUser }) {
 
       const res = await api.post(
         `/api/challenges/${selectedChallenge._id}/submit`,
-        { flag: answer.trim() }  // Changed from 'answer' to 'flag'
+        { flag: answer.trim() }
       );
 
       setMessage(res.data.message);
       
       if (res.data.success) {
-        // Update daily points
         const today = new Date().toLocaleDateString();
         const newPoints = dailyPoints + selectedChallenge.points;
         localStorage.setItem(`dailyPoints-${today}`, newPoints.toString());
         setDailyPoints(newPoints);
         
-        // Refresh data
-        const [challengesRes, userRes] = await Promise.all([
-          api.get(difficulty === 'all' ? '/api/challenges' : `/api/challenges/difficulty/${difficulty}`),
-          api.get('/api/profile')
-        ]);
-        
-        setChallenges(challengesRes.data || []);
+        // Refresh user data to get updated solved challenges
+        const userRes = await api.get('/api/profile');
         setUser(userRes.data);
+        
+        // Refresh challenges list
+        const challengesRes = await api.get(
+          difficulty === 'all' ? '/api/challenges' : `/api/challenges/difficulty/${difficulty}`
+        );
+        setChallenges(challengesRes.data || []);
+        
         setAnswer('');
       }
     } catch (err) {
@@ -215,7 +287,6 @@ export default function Challenges({ user: initialUser }) {
       setTodoList([...todoList, selectedChallenge]);
       setMessage('Added to your todo list!');
       
-      // Update user data
       const userRes = await api.get('/api/profile');
       setUser(userRes.data);
     } catch (err) {
@@ -229,7 +300,6 @@ export default function Challenges({ user: initialUser }) {
       setTodoList(todoList.filter(item => item._id !== challengeId));
       setMessage('Removed from todo list');
       
-      // Update user data
       const userRes = await api.get('/api/profile');
       setUser(userRes.data);
     } catch (err) {
@@ -246,10 +316,21 @@ export default function Challenges({ user: initialUser }) {
     }
   };
 
+  // Cleanup terminal on unmount
+  useEffect(() => {
+    return () => {
+      if (terminalRef.current) {
+        terminalRef.current.dispose();
+        terminalRef.current = null;
+        fitAddonRef.current = null;
+      }
+    };
+  }, []);
+
+
   return (
     <div className="min-h-screen bg-[#0a192f] text-[#64ffda] p-8 font-mono">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
         <header className="mb-8 border-b border-[#1e2a47] pb-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center">
@@ -289,13 +370,12 @@ export default function Challenges({ user: initialUser }) {
               
               <div className="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2 flex items-center">
                 <TrophyIcon className="h-5 w-5 text-amber-400 mr-2" />
-                  <span className="font-medium text-amber-400">{dailyPoints}</span>
-                     <span className="text-slate-200 ml-1" />
+                <span className="font-medium text-amber-400">{dailyPoints}</span>
+                <span className="text-slate-200 ml-1">pts</span>
               </div>
             </div>
           </div>
           
-          {/* Tabs */}
           <div className="flex border-b border-[#1e2a47] mt-6">
             <button
               className={`px-4 py-2 font-medium text-sm flex items-center ${activeTab === 'all' ? 'text-[#64ffda] border-b-2 border-[#64ffda]' : 'text-[#8892b0] hover:text-[#ccd6f6]'}`}
@@ -321,7 +401,6 @@ export default function Challenges({ user: initialUser }) {
           </div>
         </header>
         
-        {/* Main Content */}
         <main className="mt-6">
           {error && (
             <div className="bg-red-900/30 text-red-400 p-4 rounded border border-red-700 mb-6 flex items-center">
@@ -418,7 +497,6 @@ export default function Challenges({ user: initialUser }) {
           )}
         </main>
         
-        {/* Challenge Modal */}
         {selectedChallenge && (
           <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-6xl max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -438,7 +516,6 @@ export default function Challenges({ user: initialUser }) {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
-                {/* Left Column - Challenge Details */}
                 <div className="space-y-6">
                   <div className="bg-slate-900/50 rounded-lg p-5 border border-slate-700">
                     <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
@@ -487,7 +564,7 @@ export default function Challenges({ user: initialUser }) {
                       Submit Solution
                     </h3>
                     <p className="text-slate-400 text-sm mb-3">
-                      Run your code and enter the output below to verify your solution.
+                      Enter your solution below to verify your answer.
                     </p>
                     
                     <div className="flex mb-2">
@@ -535,55 +612,63 @@ export default function Challenges({ user: initialUser }) {
                   </div>
                 </div>
 
-                {/* Right Column - Code Editor and Terminal */}
                 <div className="space-y-6">
-                  <div className="h-96 rounded-lg overflow-hidden border border-slate-700">
-                    <div className="bg-slate-900 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
-                      <span className="text-sm font-mono text-slate-400">
-                        {selectedChallenge.language || 'javascript'}
-                      </span>
-                      <button
-                        onClick={runCode}
-                        className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded flex items-center transition-colors"
-                      >
-                        <BoltIcon className="h-3 w-3 mr-1" />
-                        Run Code
-                      </button>
-                    </div>
-                    <Editor
-                      height="calc(100% - 40px)"
-                      defaultLanguage={selectedChallenge.language || 'javascript'}
-                      theme="vs-dark"
-                      value={code}
-                      onChange={setCode}
-                      options={{
-                        minimap: { enabled: false },
-                        fontSize: 14,
-                        wordWrap: 'on',
-                        automaticLayout: true,
-                        scrollBeyondLastLine: false,
-                        padding: { top: 10 }
-                      }}
-                    />
-                  </div>
-                  
                   <div className="rounded-lg overflow-hidden border border-slate-700">
                     <div className="bg-slate-900 px-4 py-2 border-b border-slate-700">
                       <span className="text-sm font-mono text-slate-400">Terminal</span>
+                      <button
+                        onClick={runCode}
+                        disabled={!answer.trim()}
+                        className={`text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded flex items-center transition-colors float-right ${
+                          !answer.trim() ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <BoltIcon className="h-3 w-3 mr-1" />
+                        Run Command
+                      </button>
                     </div>
-                    <div id="terminal" className="h-48 w-full p-2 font-mono text-sm"></div>
+                    <div 
+                      id="terminal" 
+                      ref={terminalContainerRef}
+                      className="h-96 w-full p-2 font-mono text-sm"
+                    ></div>
+                  </div>
+
+                  {/* Console output section */}
+                  <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
+                    <h3 className="text-lg font-semibold text-white mb-2 flex items-center">
+                      <CubeIcon className="h-5 w-5 mr-2 text-blue-400" />
+                      Console Output
+                    </h3>
+                    <div className="bg-black p-3 rounded font-mono text-sm h-40 overflow-y-auto">
+                      {output ? (
+                        <pre className="whitespace-pre-wrap">{output}</pre>
+                      ) : (
+                        <p className="text-slate-400">Command output will appear here...</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="sticky bottom-0 bg-slate-800/90 backdrop-blur-sm border-t border-slate-700 p-4 flex justify-between items-center">
-                <button 
-                  onClick={addToTodoList}
-                  className="flex items-center text-indigo-400 hover:text-indigo-300 transition-colors group"
-                >
-                  <PlusIcon className="h-5 w-5 mr-1 group-hover:rotate-90 transition-transform" />
-                  Add to To-Do List
-                </button>
+                {!todoList.some(item => item._id === selectedChallenge._id) ? (
+                  <button 
+                    onClick={addToTodoList}
+                    className="flex items-center text-indigo-400 hover:text-indigo-300 transition-colors group"
+                  >
+                    <PlusIcon className="h-5 w-5 mr-1 group-hover:rotate-90 transition-transform" />
+                    Add to To-Do List
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => removeFromTodoList(selectedChallenge._id)}
+                    className="flex items-center text-rose-400 hover:text-rose-300 transition-colors group"
+                  >
+                    <XMarkIcon className="h-5 w-5 mr-1 group-hover:rotate-90 transition-transform" />
+                    Remove from To-Do List
+                  </button>
+                )}
                 <button 
                   onClick={closeChallengeModal}
                   className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"

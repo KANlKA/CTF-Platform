@@ -1,9 +1,63 @@
+version: '3.8'
+
 services:
   frontend:
-    build: ./frontend
+    image: ghcr.io/kanlka/ctf-platform-frontend:latest
+    container_name: ctf-platform-frontend
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ctf-network
+
   backend:
-    build: ./backend
+    image: ghcr.io/kanlka/ctf-platform-backend:latest
+    container_name: ctf-platform-backend
+    restart: unless-stopped
     ports:
       - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://user:pass@db:5432/ctfdb
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ctf-network
+
+  db:
+    image: postgres:15-alpine
+    container_name: ctf-platform-db
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: ctfdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d ctfdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ctf-network
+
+networks:
+  ctf-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

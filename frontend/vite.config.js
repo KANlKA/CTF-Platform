@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    visualizer()  // Correctly added as a separate array element
+  ],
   server: {
     proxy: {
       '/api': {
@@ -15,13 +19,16 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
-      external: [], // Keep empty to ensure dependencies aren't externalized
       output: {
         manualChunks: {
-          monaco: ['@monaco-editor/react', 'monaco-editor'], // Move monaco to its own chunk
+          react: ['react', 'react-dom', 'react-router-dom'],
           xterm: ['xterm', 'xterm-addon-fit'],
-          react: ['react', 'react-dom'],
-          vendor: ['lodash', 'axios']
+          heroicons: ['@heroicons/react'],
+          vendor: [
+            'axios',
+            'date-fns',
+            'lodash'
+          ]
         }
       }
     }
