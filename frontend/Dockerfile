@@ -1,18 +1,28 @@
-# Build stage
-FROM node:18-alpine AS builder
+FROM node:20-alpine as build
+
+# Create app directory
 WORKDIR /app
+
+# Install app dependencies
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
+
+# Copy app source
 COPY . .
+
+# Build the app
 RUN npm run build
 
 # Production stage
-FROM nginx:1.25-alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
+FROM nginx:alpine
+
+# Copy built assets from the build stage
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-RUN rm /etc/nginx/conf.d/default.conf
-COPY nginx.conf /etc/nginx/conf.d/
+
+# Expose port
 EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD curl -f http://localhost/ || exit 1
+
 CMD ["nginx", "-g", "daemon off;"]

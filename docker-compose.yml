@@ -1,57 +1,50 @@
 version: '3.8'
 
 services:
-  frontend:
-    image: ghcr.io/kanlka/ctf-platform-frontend:latest
-    container_name: ctf-platform-frontend
-    restart: unless-stopped
+  # MongoDB service
+  mongodb:
+    image: mongo:6
+    container_name: ctf-mongodb
     ports:
-      - "3000:80"
-    environment:
-      - NODE_ENV=production
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    networks:
-      - ctf-network
-
-  backend:
-    image: ghcr.io/kanlka/ctf-platform-backend:latest
-    container_name: ctf-platform-backend
-    restart: unless-stopped
-    ports:
-      - "5000:5000"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgres://user:pass@db:5432/ctfdb
-    depends_on:
-      db:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    networks:
-      - ctf-network
-
-  db:
-    image: postgres:15-alpine
-    container_name: ctf-platform-db
-    restart: unless-stopped
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mongodb_data:/data/db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: ctfdb
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d ctfdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-rootpassword}
+    networks:
+      - ctf-network
+
+  # Backend service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ctf-backend
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-root}:${MONGO_INITDB_ROOT_PASSWORD:-rootpassword}@mongodb:27017/ctf-platform?authSource=admin
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_key}
+      - FRONTEND_URL=http://localhost
+    networks:
+      - ctf-network
+
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ctf-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
     networks:
       - ctf-network
 
@@ -60,4 +53,4 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  mongodb_data:

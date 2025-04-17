@@ -5,7 +5,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 export default defineConfig({
   plugins: [
     react(),
-    visualizer()  // Correctly added as a separate array element
+    visualizer()  
   ],
   server: {
     proxy: {

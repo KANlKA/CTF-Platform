@@ -1,20 +1,21 @@
-FROM node:18-alpine
-WORKDIR /app
+FROM node:20-alpine
 
-# Install dependencies first for better caching
+# Create app directory
+WORKDIR /usr/src/app
+
+# Install app dependencies
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy application files
+# Copy app source
 COPY . .
 
-# Security hardening
-RUN chown -R node:node /app \
-    && apk add --no-cache dumb-init
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=5000
 
-USER node
+# Expose the port
 EXPOSE 5000
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD curl -f http://localhost:5000/health || exit 1
-ENTRYPOINT ["dumb-init", "--"]
+
+# Run the app
 CMD ["node", "server.js"]

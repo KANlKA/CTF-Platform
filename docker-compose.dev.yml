@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # MongoDB service for development
+  mongodb-dev:
+    image: mongo:6
+    container_name: ctf-mongodb-dev
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_dev_data:/data/db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-rootpassword}
+    networks:
+      - ctf-dev-network
+
+  # Backend service for development (with hot reload)
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: ctf-backend-dev
+    restart: unless-stopped
+    depends_on:
+      - mongodb-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-root}:${MONGO_INITDB_ROOT_PASSWORD:-rootpassword}@mongodb-dev:27017/ctf-platform?authSource=admin
+      - JWT_SECRET=${JWT_SECRET:-your_dev_jwt_secret_key}
+      - FRONTEND_URL=http://localhost:5173
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - "5000:5000"
+    command: npm run dev
+    networks:
+      - ctf-dev-network
+
+  # Frontend service for development (with hot reload)
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: ctf-frontend-dev
+    restart: unless-stopped
+    depends_on:
+      - backend-dev
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: npm run dev
+    networks:
+      - ctf-dev-network
+
+networks:
+  ctf-dev-network:
+    driver: bridge
+
+volumes:
+  mongodb_dev_data:
