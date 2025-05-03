@@ -1,6 +1,6 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
-const { User, Challenge } = require('../models');
+const { User, Challenge } = require('../backend/models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -12,8 +12,7 @@ jest.setTimeout(30000);
 
 beforeAll(async () => {
   app = await initTestApp();
-  await User.deleteMany({});
-  await Challenge.deleteMany({});
+  await mongoose.connection.dropDatabase();
 });
 
 afterAll(async () => {
@@ -28,16 +27,18 @@ afterEach(async () => {
 describe('Auth API', () => {
   test('User registration', async () => {
     const res = await request(app)
-      .post('/api/auth/register')  // Updated endpoint path
+      .post('/api/register')
       .send({
         username: 'testuser',
         email: 'test@example.com',
-        password: 'Password123!',
-        confirmPassword: 'Password123!'
+        password: 'Password123!'
       });
 
+    console.log('Registration response:', res.body);
     expect(res.statusCode).toBe(201);
-    expect(res.body).toHaveProperty('_id');
+    expect(res.body).toHaveProperty('token');
+    expect(res.body).toHaveProperty('user');
+    expect(res.body.user.username).toBe('testuser');
   });
 
   test('User login', async () => {
@@ -49,7 +50,7 @@ describe('Auth API', () => {
     });
 
     const res = await request(app)
-      .post('/api/auth/login')  // Updated endpoint path
+      .post('/api/login')
       .send({
         username: 'loginuser',
         password: 'Password123!'
@@ -57,6 +58,7 @@ describe('Auth API', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('token');
+    expect(res.body.user.username).toBe('loginuser');
   });
 });
 
@@ -83,14 +85,14 @@ describe('Challenges API', () => {
       .set('Authorization', `Bearer ${authToken}`)
       .send({
         title: 'Test Challenge',
-        description: 'This is a proper challenge description',
+        description: 'This is a test challenge with proper description length',
         category: 'web',
         difficulty: 'easy',
-        flag: 'flag{test-flag}',
-        points: 100
+        flag: 'flag{test-flag}'
       });
 
     expect(res.statusCode).toBe(201);
     expect(res.body).toHaveProperty('_id');
+    expect(res.body.title).toBe('Test Challenge');
   });
 });
