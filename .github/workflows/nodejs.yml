@@ -22,11 +22,21 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Verify backend directory
+      run: |
+        echo "Repository contents:"
+        ls -la
+        echo "Backend contents:"
+        ls -la backend/
+        echo "package-lock.json exists:"
+        [ -f backend/package-lock.json ] && echo "YES" || echo "NO"
+    
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
         cache: 'npm'
+        cache-dependency-path: 'backend/package-lock.json'
     
     - name: Install dependencies
       working-directory: ./backend
@@ -36,6 +46,6 @@ jobs:
       working-directory: ./backend
       env:
         NODE_ENV: test
-        MONGODB_URI_TEST: mongodb://testuser:testpass@localhost:27017/testdb?authSource=admin
+        MONGODB_URI: mongodb://testuser:testpass@localhost:27017/testdb?authSource=admin
         JWT_SECRET: testsecret123
       run: npm test
