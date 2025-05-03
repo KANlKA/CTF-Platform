@@ -6,8 +6,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  FRONTEND_IMAGE: ctf-platform-frontend  # manually set to lowercase
-  BACKEND_IMAGE: ctf-platform-backend   # manually set to lowercase
+  FRONTEND_IMAGE: ctf-platform-frontend  # Ensure it is lowercase and follows Docker's naming conventions
+  BACKEND_IMAGE: ctf-platform-backend   # Ensure it is lowercase and follows Docker's naming conventions
 
 jobs:
   build-and-push:
