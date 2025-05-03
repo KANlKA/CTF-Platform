@@ -8,10 +8,9 @@ async function initTestApp() {
   app.use(cors());
   app.use(bodyParser.json());
   
-  // Use default test DB if env var not set
-  const dbUri = process.env.TEST_DB_URI || 'mongodb://localhost:27017/testdb';
+  console.log('Connecting to:', process.env.TEST_MONGODB_URI.replace(/\/\/.*@/, '//****:****@'));
   
-  await mongoose.connect(dbUri, {
+  await mongoose.connect(process.env.TEST_MONGODB_URI, {
     serverSelectionTimeoutMS: 5000
   });
   
