@@ -32,7 +32,10 @@ describe('Auth API', () => {
   expect(res.body).toHaveProperty('_id');
   expect(res.body).toHaveProperty('username', 'testuser');
 });
-
+beforeEach(async () => {
+  await User.deleteMany({});
+  await Challenge.deleteMany({});
+});
   test('User login', async () => {
     // Create test user first
     await User.create({
