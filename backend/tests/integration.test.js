@@ -1,19 +1,29 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
-const { User, Challenge } = require('../models'); // Make sure this path is correct
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const initTestApp = require('./testApp');
 let app;
 
+// Test database configuration
+const TEST_DB_URI = process.env.TEST_DB_URI || 'mongodb://localhost:27017/testdb';
+
 beforeAll(async () => {
-  // Initialize app first
   app = await initTestApp();
   
-  // Then connect to database
-  await mongoose.connect(process.env.TEST_DB_URI || 'mongodb://localhost:27017/testdb');
-  await mongoose.connection.dropDatabase();
+  // Connect with authentication if needed
+  await mongoose.connect(TEST_DB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000
+  });
+
+  // Clear all collections instead of dropping database
+  const collections = await mongoose.connection.db.collections();
+  for (let collection of collections) {
+    await collection.deleteMany({});
+  }
 });
 
 afterAll(async () => {
@@ -21,10 +31,9 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  if (mongoose.connection.readyState === 1) { // Check if connected
-    await User.deleteMany({}).catch(() => {});
-    await Challenge.deleteMany({}).catch(() => {});
-  }
+  // Clean up specific collections between tests
+  await mongoose.connection.db.collection('users').deleteMany({});
+  await mongoose.connection.db.collection('challenges').deleteMany({});
 });
 
 describe('Auth API', () => {
@@ -42,8 +51,8 @@ describe('Auth API', () => {
   });
 
   test('User login', async () => {
-    // First create a test user
-    await User.create({
+    // Create user directly in the test database
+    await mongoose.connection.db.collection('users').insertOne({
       username: 'loginuser',
       email: 'login@test.com',
       password: await bcrypt.hash('Password123!', 10)
@@ -66,13 +75,14 @@ describe('Challenges API', () => {
   let userId;
 
   beforeEach(async () => {
-    const user = await User.create({
+    // Create test user directly
+    const user = await mongoose.connection.db.collection('users').insertOne({
       username: 'challengeuser',
       email: 'challenge@test.com',
       password: await bcrypt.hash('Password123!', 10),
       role: 'admin'
     });
-    userId = user._id;
+    userId = user.insertedId;
     authToken = jwt.sign({ id: userId }, process.env.JWT_SECRET);
   });
 
