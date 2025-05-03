@@ -1,8 +1,19 @@
 const request = require('supertest');
-const { app } = require('../server');
+const mongoose = require('mongoose');
 const { User, Challenge } = require('../models');// Import models directly
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+
+const initTestApp = require('./testApp');
+let app;
+
+beforeAll(async () => {
+  app = await initTestApp();
+}, 30000); // 30s timeout
+
+afterAll(async () => {
+  await mongoose.disconnect();
+});
 
 describe('Auth API', () => {
   test('User registration', async () => {
