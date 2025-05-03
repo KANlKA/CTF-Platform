@@ -1,22 +1,29 @@
 // testApp.js
-async function initTestApp() {
+const express = require('express');
+const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const routes = require('../routes');
+
+async function createTestApp() {
   const app = express();
   
-  // Start in-memory MongoDB (no auth)
+  // Start in-memory MongoDB
   const mongoServer = await MongoMemoryServer.create();
   const uri = mongoServer.getUri();
-  
-  // Connect without any auth options
+
+  // Connect to MongoDB
   await mongoose.connect(uri, {
     useNewUrlParser: true,
     useUnifiedTopology: true
   });
 
-  // Rest of your app setup
-  app.use(cors());
+  // Middleware
   app.use(express.json());
-  const routes = require('../routes');
-  app.use('/', routes);
   
-  return app;
+  // Routes
+  app.use('/', routes);
+
+  return { app, mongoServer };
 }
+
+module.exports = createTestApp;
