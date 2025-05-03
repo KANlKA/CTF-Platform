@@ -2,38 +2,38 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 
-const initTestApp = require('./testApp');
+const createTestApp = require('./testApp'); // Make sure this exports properly
 let app;
-beforeEach(async () => {
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    await collections[key].deleteMany({});
-  }
-});
+let mongoServer;
+
 beforeAll(async () => {
-  app = await initTestApp();
-  await mongoose.connection.asPromise();
-  await mongoose.connection.db.admin().command({ ping: 1 });
-  const db = mongoose.connection.db;
-  const collections = await db.listCollections().toArray();
+  // Create in-memory MongoDB server
+  mongoServer = await MongoMemoryServer.create();
+  const uri = mongoServer.getUri();
   
-  await Promise.all(
-    collections.map(collection => 
-      db.collection(collection.name).deleteMany({})
-    )
-  );
+  // Connect to MongoDB
+  await mongoose.connect(uri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+  });
+
+  // Create test app
+  app = await createTestApp();
 }, 30000);
 
 afterAll(async () => {
   await mongoose.disconnect();
+  await mongoServer.stop();
 });
 
 afterEach(async () => {
-  if (mongoose.connection.readyState !== 1) return;
-  const db = mongoose.connection.db;
-  await db.collection('users').deleteMany({});
-  await db.collection('challenges').deleteMany({});
+  // Clear all collections between tests
+  const collections = mongoose.connection.collections;
+  for (const key in collections) {
+    await collections[key].deleteMany({});
+  }
 });
 
 describe('Auth API', () => {
@@ -53,8 +53,10 @@ describe('Auth API', () => {
   });
 
   test('User login', async () => {
+    // First register the user
     await request(app).post('/api/register').send(testUser);
   
+    // Then test login
     const res = await request(app)
       .post('/api/login')
       .send({
@@ -72,15 +74,18 @@ describe('Challenges API', () => {
   let userId;
 
   beforeEach(async () => {
+    // Create test user directly through the API
     const username = 'challengeuser-' + Date.now();
-    const user = await mongoose.connection.db.collection('users').insertOne({
-      username,
-      email: `challenge-${Date.now()}@test.com`,
-      password: await bcrypt.hash('Password123!', 10),
-      role: 'admin'
-    });
-    userId = user.insertedId;
-    authToken = jwt.sign({ id: userId }, process.env.JWT_SECRET);
+    const email = `challenge-${Date.now()}@test.com`;
+    const password = 'Password123!';
+    
+    // Register user
+    const regRes = await request(app)
+      .post('/api/register')
+      .send({ username, email, password });
+    
+    userId = regRes.body.user.id;
+    authToken = regRes.body.token;
   });
 
   test('Create challenge', async () => {
