@@ -52,6 +52,11 @@ jobs:
         echo "MONGODB_URI=mongodb://root:example@localhost:27017/ctf-test?authSource=admin" >> .env
         echo "JWT_SECRET=test-secret-for-ci" >> .env
 
+    - name: Install libssl1.1 (for mongodb-memory-server)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libssl1.1 || curl -LO http://archive.ubuntu.com/ubuntu/pool/main/o/openssl1.1/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb && sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
+
     - name: Run tests
       run: npm test
       env:
