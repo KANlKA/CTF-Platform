@@ -1,24 +1,22 @@
-const mongoose = require('mongoose');
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-
+// testApp.js
 async function initTestApp() {
   const app = express();
-  app.use(cors());
-  app.use(bodyParser.json());
   
-  console.log('Connecting to:', process.env.TEST_MONGODB_URI.replace(/\/\/.*@/, '//****:****@'));
+  // Start in-memory MongoDB (no auth)
+  const mongoServer = await MongoMemoryServer.create();
+  const uri = mongoServer.getUri();
   
-  await mongoose.connect("mongodb://localhost:27017/ctf-platform-test", {
+  // Connect without any auth options
+  await mongoose.connect(uri, {
     useNewUrlParser: true,
-    useUnifiedTopology: true,
+    useUnifiedTopology: true
   });
-  
+
+  // Rest of your app setup
+  app.use(cors());
+  app.use(express.json());
   const routes = require('../routes');
   app.use('/', routes);
   
   return app;
 }
-
-module.exports = initTestApp;
