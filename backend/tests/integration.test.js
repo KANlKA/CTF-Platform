@@ -12,7 +12,10 @@ beforeAll(async () => {
   // Wait for connection to be ready
   await mongoose.connection.asPromise();
   
-  // Clear collections using direct MongoDB driver
+  // Authenticate before running operations
+  await mongoose.connection.db.admin().command({ ping: 1 });
+  
+  // Clear collections using authenticated connection
   const db = mongoose.connection.db;
   const collections = await db.listCollections().toArray();
   
@@ -33,7 +36,6 @@ afterEach(async () => {
   await db.collection('users').deleteMany({});
   await db.collection('challenges').deleteMany({});
 });
-
 describe('Auth API', () => {
   test('User registration', async () => {
     const res = await request(app)
