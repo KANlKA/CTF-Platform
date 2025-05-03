@@ -10,17 +10,28 @@ export default function Login({ onLogin }) {
   const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    
+    e.preventDefault();
+    setError('');
+  
+    const payload = {
+      username: formData.username.trim(),
+      password: formData.password.trim()
+    };
+  
+    console.log('Submitting payload:', payload);
+  
     try {
-      const res = await api.post('/api/login', formData)
-      onLogin(res.data.user, res.data.token)
-      navigate('/', { replace: true })
+      const res = await api.post('/api/login', payload);
+      console.log('Response:', res.data);
+      onLogin(res.data.user, res.data.token);
+      navigate('/', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed')
+      console.error('Full error:', err);
+      console.error('Response data:', err.response?.data);
+      setError(err.response?.data?.message || 'Login failed');
     }
-  }
+  };
+  
   return (
     <div className="min-h-screen bg-[#0a192f] text-[#64ffda] p-8 font-mono">
       <div className="max-w-md mx-auto bg-[#112240] rounded-lg p-8 shadow-lg border border-[#1e2a47] hover:border-[#64ffda] transition-all">
