@@ -1,16 +1,13 @@
-# Build stage
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-# Fix permissions for node_modules
-RUN chmod -R 777 node_modules/.bin
-COPY . .
-RUN npm run build
+FROM node:18-alpine
 
-# Production stage
-FROM nginx:1.23-alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+WORKDIR /app
+
+# Install dependencies first
+COPY package*.json ./
+RUN npm install
+
+# Copy source code
+COPY . .
+
+EXPOSE 5173
+CMD ["npm", "run", "dev"]

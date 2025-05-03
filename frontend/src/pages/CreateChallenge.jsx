@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '../api';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, PlusIcon } from '@heroicons/react/24/outline';
 
 const categories = [
   'web', 'crypto', 'pwn', 'forensics', 
@@ -22,8 +22,13 @@ export default function CreateChallenge() {
     description: '',
     category: 'web',
     difficulty: 'easy',
-    flag: ''
+    flag: '',
+    hints: [{
+      text: '',
+      cost: 300
+    }]
   });
+  
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,7 +37,11 @@ export default function CreateChallenge() {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
-
+  const handleHintChange = (index, field, value) => {
+    const updatedHints = [...form.hints];
+    updatedHints[index][field] = field === 'cost' ? parseInt(value) || 0 : value;
+    setForm(prev => ({ ...prev, hints: updatedHints }));
+  };
   const validateForm = () => {
     const newErrors = {};
     if (form.title.length < 5) newErrors.title = 'Title too short (min 5 chars)';
@@ -49,24 +58,30 @@ export default function CreateChallenge() {
       setErrors(validationErrors);
       return;
     }
-
+  
     setIsSubmitting(true);
     try {
-      await api.post('/api/challenges', form);
+      // Get current user ID
+      const userRes = await api.get('/api/profile');
+      const userId = userRes.data._id;
+      
+      await api.post('/api/challenges', {
+        ...form,
+        author: userId // Include author ID
+      });
+      
       setMessage('Challenge created successfully!');
       setForm({ 
         title: '', 
         description: '', 
         category: 'web', 
         difficulty: 'easy', 
-        flag: '' 
+        flag: '',
+        hints: []
       });
       setErrors({});
     } catch (err) {
-      const errorMsg = err.response?.data?.message || 
-                      err.response?.data?.errors?.join(', ') || 
-                      'Error creating challenge';
-      setMessage(errorMsg);
+      // error handling
     } finally {
       setIsSubmitting(false);
     }
@@ -189,7 +204,61 @@ export default function CreateChallenge() {
                 This is the solution participants need to submit (minimum 3 characters)
               </p>
             </div>
-
+            <div className="space-y-4">
+  <h3 className="text-lg font-medium text-gray-300">Hints</h3>
+  {form.hints.map((hint, index) => (
+    <div key={index} className="bg-[#0a192f]/50 p-3 rounded-lg border border-[#1e2a47]">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
+        <div className="md:col-span-2">
+          <label className="block text-sm text-gray-400 mb-1">Hint Text</label>
+          <input
+            value={hint.text}
+            onChange={(e) => handleHintChange(index, 'text', e.target.value)}
+            className="w-full bg-[#0a192f] border border-[#1e2a47] p-2 rounded"
+            placeholder="Provide a helpful hint"
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Point Cost</label>
+          <input
+            type="number"
+            value={hint.cost}
+            onChange={(e) => handleHintChange(index, 'cost', e.target.value)}
+            className="w-full bg-[#0a192f] border border-[#1e2a47] p-2 rounded"
+            min="10"
+            max="500"
+          />
+        </div>
+      </div>
+      <div className="flex justify-end space-x-2">
+        {form.hints.length > 1 && (
+          <button
+            type="button"
+            onClick={() => {
+              const updatedHints = [...form.hints];
+              updatedHints.splice(index, 1);
+              setForm(prev => ({ ...prev, hints: updatedHints }));
+            }}
+            className="text-xs bg-red-900/30 text-red-400 px-2 py-1 rounded hover:bg-red-900/50"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+    </div>
+  ))}
+  <button
+    type="button"
+    onClick={() => setForm(prev => ({
+      ...prev,
+      hints: [...prev.hints, { text: '', cost: 50 }]
+    }))}
+    className="text-sm bg-[#1e2a47] text-[#64ffda] px-3 py-1 rounded hover:bg-[#64ffda]/10 flex items-center"
+  >
+    <PlusIcon className="h-4 w-4 mr-1" />
+    Add Another Hint
+  </button>
+</div>
             <button
               type="submit"
               disabled={isSubmitting}

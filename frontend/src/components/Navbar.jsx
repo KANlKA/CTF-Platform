@@ -4,10 +4,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   UserCircleIcon,
   MagnifyingGlassIcon,
-  PlusCircleIcon
+  PlusCircleIcon,
+  ChatBubbleLeftRightIcon
 } from '@heroicons/react/24/outline';
 
-export default function Navbar({ user, onLogout }) {
+export default function Navbar({ user, onLogout, toggleChatbot, showChatbot }) {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
@@ -48,7 +49,11 @@ export default function Navbar({ user, onLogout }) {
                 Dashboard
               </Link>
             )}
-
+            {user && (
+              <Link to="/discussions" className="hover:text-white transition-colors font-medium">
+                Discussions
+              </Link>
+            )}
             {user && (
               <Link to="/challenges/create" className="hover:text-white transition-colors font-medium">
                 <PlusCircleIcon className="h-5 w-5 inline md:hidden" />
@@ -58,6 +63,16 @@ export default function Navbar({ user, onLogout }) {
           </nav>
 
           <div className="flex items-center space-x-4">
+            {user && (
+              <button 
+                onClick={toggleChatbot}
+                className={`p-2 rounded-full ${showChatbot ? 'bg-[#64ffda] text-[#0a192f]' : 'hover:bg-[#112240] text-[#64ffda]'}`}
+                title="AI Assistant"
+              >
+                <ChatBubbleLeftRightIcon className="h-5 w-5" />
+              </button>
+            )}
+            
             {user ? (
               <Link 
                 to="/profile" 
