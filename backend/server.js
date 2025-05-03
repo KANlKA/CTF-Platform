@@ -32,7 +32,11 @@ app.get('/api/data', (req, res) => {
 });
 // MongoDB connection with authentication
 if (!isTestEnv) {
+<<<<<<< HEAD
   mongoose.connect(process.env.DB_CONNECTION_STRING || "mongodb://localhost:27017/ctf-platform", {
+=======
+  mongoose.connect(process.env.MONGODB_URI, {
+>>>>>>> e240943358f788ab9a0730efc539051e5e1bc646
     useNewUrlParser: true,
     useUnifiedTopology: true
   })
@@ -66,4 +70,8 @@ if (process.env.NODE_ENV === 'test') {
   module.exports = app;
 } else {
   module.exports = { app };
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> e240943358f788ab9a0730efc539051e5e1bc646
