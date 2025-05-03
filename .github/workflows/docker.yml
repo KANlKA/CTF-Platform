@@ -33,7 +33,7 @@ jobs:
         with:
           context: ./frontend  # Path to frontend Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+          tags: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE | lower }}:latest
           labels: "app=frontend"
 
       # Build and push backend
@@ -42,5 +42,5 @@ jobs:
         with:
           context: ./backend  # Path to backend Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+          tags: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE | lower }}:latest
           labels: "app=backend"
