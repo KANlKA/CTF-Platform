@@ -22,15 +22,12 @@ describe('Auth API', () => {
     .send({
       username: 'testuser',
       email: 'test@example.com',
-      password: 'password123'
+      password: 'password123',
+      confirmPassword: 'password123' // Add if your validation requires this
     });
   
-  // Debug output
-  console.log('Registration response:', {
-    status: res.status,
-    body: res.body
-  });
-
+  console.log('Registration error details:', res.body.errors); // Log validation errors
+  
   expect(res.statusCode).toBe(201);
   expect(res.body).toHaveProperty('_id');
   expect(res.body).toHaveProperty('username', 'testuser');
