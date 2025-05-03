@@ -1,23 +1,7 @@
-const express = require('express');
-const mongoose = require('mongoose');
-require('dotenv').config({ path: '.env.test' });
-
-module.exports = async () => {
-  const app = express();
-  
-  // Add your middleware and routes
-  app.use(express.json());
-  // Add other middleware as needed
-  
-  // Connect to test database
-  await mongoose.connect(process.env.MONGODB_URI_TEST, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  });
-
-  // Import and use your routes
-  const routes = require('../routes');
-  app.use('/', routes);
-
-  return app;
-};
+mongoose.connect(process.env.TEST_DB_URI || 'mongodb://localhost:27017/testdb', {
+  auth: {
+    username: process.env.DB_USER,
+    password: process.env.DB_PASS
+  },
+  authSource: 'admin'
+});
