@@ -5,17 +5,16 @@ const jwt = require('jsonwebtoken');
 
 const initTestApp = require('./testApp');
 let app;
-
+beforeEach(async () => {
+  const collections = mongoose.connection.collections;
+  for (const key in collections) {
+    await collections[key].deleteMany({});
+  }
+});
 beforeAll(async () => {
   app = await initTestApp();
-  
-  // Wait for connection to be ready
   await mongoose.connection.asPromise();
-  
-  // Authenticate before running operations
   await mongoose.connection.db.admin().command({ ping: 1 });
-  
-  // Clear collections using authenticated connection
   const db = mongoose.connection.db;
   const collections = await db.listCollections().toArray();
   
@@ -36,37 +35,35 @@ afterEach(async () => {
   await db.collection('users').deleteMany({});
   await db.collection('challenges').deleteMany({});
 });
+
 describe('Auth API', () => {
+  let testUser = {
+    username: `testuser${Date.now()}`,
+    email: `test${Date.now()}@example.com`,
+    password: 'Password123!'
+  };
+
   test('User registration', async () => {
     const res = await request(app)
       .post('/api/register')
-      .send({
-        username: 'testuser-' + Date.now(),
-        email: `test-${Date.now()}@example.com`,
-        password: 'Password123!',
-        confirmPassword: 'Password123!'
-      });
+      .send(testUser);
     
     expect(res.statusCode).toBe(201);
-    expect(res.body).toHaveProperty('token');
+    expect(res.body.token).toBeDefined();
   });
 
   test('User login', async () => {
-    const username = 'loginuser-' + Date.now();
-    const password = 'Password123!';
-    
-    await mongoose.connection.db.collection('users').insertOne({
-      username,
-      email: `login-${Date.now()}@test.com`,
-      password: await bcrypt.hash(password, 10)
-    });
-
+    await request(app).post('/api/register').send(testUser);
+  
     const res = await request(app)
       .post('/api/login')
-      .send({ username, password });
+      .send({
+        username: testUser.username,
+        password: testUser.password
+      });
     
     expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty('token');
+    expect(res.body.token).toBeDefined();
   });
 });
 
