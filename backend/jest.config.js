@@ -1,6 +1,6 @@
 module.exports = {
   testEnvironment: 'node',
-  testTimeout: 30000, // Increased overall timeout
+  testTimeout: 30000, 
   setupFilesAfterEnv: ['./tests/testSetup.js'],
   globalSetup: './tests/globalSetup.js',
   globalTeardown: './tests/globalTeardown.js',
