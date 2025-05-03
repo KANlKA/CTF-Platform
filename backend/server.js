@@ -1,4 +1,5 @@
 require('dotenv').config();
+const isTestEnv = process.env.NODE_ENV === 'test';
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -30,8 +31,8 @@ app.get('/api/data', (req, res) => {
   res.json({ message: "Connected successfully!" });
 });
 // MongoDB connection with authentication
-if (process.env.NODE_ENV !== 'test') {
-  mongoose.connect("mongodb://root:example@mongo:27017/ctf-platform?authSource=admin", {
+if (!isTestEnv) {
+  mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
   })
@@ -61,4 +62,8 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
 
-module.exports = app;
+if (process.env.NODE_ENV === 'test') {
+  module.exports = app;
+} else {
+  module.exports = { app };
+}
