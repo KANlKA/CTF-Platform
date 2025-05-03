@@ -1,27 +1,23 @@
-name: Run Tests
+name: Node.js CI
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+on: [push, pull_request]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: backend
-
+    
     services:
       mongodb:
         image: mongo:6
         ports: [27017:27017]
         env:
-          MONGO_INITDB_ROOT_USERNAME: test
-          MONGO_INITDB_ROOT_PASSWORD: test
-        options: --health-cmd "mongosh --eval 'db.runCommand(\"ping\").ok'" --health-interval 10s --health-timeout 5s --health-retries 3
+          MONGO_INITDB_ROOT_USERNAME: testuser
+          MONGO_INITDB_ROOT_PASSWORD: testpass
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand(\"ping\").ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
 
     steps:
     - uses: actions/checkout@v4
@@ -29,25 +25,15 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: '20.x'
         cache: 'npm'
-        cache-dependency-path: backend/package-lock.json
-
+    
     - name: Install dependencies
       run: npm ci
-
-    - name: Create .env file
-      run: |
-        echo "NODE_ENV=test" > .env
-        echo "MONGODB_URI=mongodb://root:example@localhost:27017/ctf-test?authSource=admin" >> .env
-        echo "JWT_SECRET=test-secret-for-ci" >> .env
-
-    - name: Install libssl1.1 (for mongodb-memory-server)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libssl1.1 || curl -LO http://archive.ubuntu.com/ubuntu/pool/main/o/openssl1.1/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb && sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
-
+      
     - name: Run tests
       env:
-        CI: true
+        NODE_ENV: test
+        MONGODB_URI: mongodb://testuser:testpass@localhost:27017/testdb?authSource=admin
+        JWT_SECRET: testsecret123
       run: npm test
