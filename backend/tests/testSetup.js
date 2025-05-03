@@ -1,21 +1,25 @@
 const mongoose = require('mongoose');
 
-beforeAll(async () => {
-  await mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+// Check if we're already connected
+if (mongoose.connection.readyState === 0) {
+  mongoose.connect(process.env.MONGODB_URI_TEST, {
     connectTimeoutMS: 30000,
+    serverSelectionTimeoutMS: 30000,
     socketTimeoutMS: 45000
   });
-});
+}
 
-afterAll(async () => {
-  await mongoose.disconnect();
-});
-
+// Clean all collections before each test
 beforeEach(async () => {
   const collections = mongoose.connection.collections;
   for (const key in collections) {
     await collections[key].deleteMany({});
+  }
+});
+
+// Disconnect after all tests
+afterAll(async () => {
+  if (mongoose.connection.readyState === 1) {
+    await mongoose.disconnect();
   }
 });
