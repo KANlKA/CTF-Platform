@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-process.env.OPENAI_API_KEY = 'mock-key'; // Add this line
 const routes = require('../routes');
 
 async function initTestApp() {
