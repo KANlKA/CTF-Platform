@@ -1,6 +1,7 @@
 module.exports = {
   testEnvironment: 'node',
-  setupFiles: ['dotenv/config'], // This loads .env.test
-  setupFilesAfterEnv: ['<rootDir>/tests/setupTests.js'], // New file we'll create
+  setupFiles: ['dotenv/config'], 
+  setupFilesAfterEnv: ['<rootDir>/tests/setupTests.js'],
   testPathIgnorePatterns: ['/node_modules/']
 };
+
