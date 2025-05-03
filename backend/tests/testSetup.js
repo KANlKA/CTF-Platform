@@ -1,17 +1,19 @@
 const mongoose = require('mongoose');
 
-beforeEach(async () => {
-  const collections = mongoose.connection.collections;
-  
-  await Promise.all(Object.keys(collections).map(async (key) => {
-    try {
-      await collections[key].deleteMany({});
-    } catch (err) {
-      console.error(`Error clearing ${key} collection:`, err);
-    }
-  }));
-});
+beforeAll(async () => {
+  await mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+  });
+}, 30000);
 
 afterAll(async () => {
   await mongoose.disconnect();
+});
+
+beforeEach(async () => {
+  const collections = mongoose.connection.collections;
+  for (const key in collections) {
+    await collections[key].deleteMany({});
+  }
 });
