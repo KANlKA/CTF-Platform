@@ -17,15 +17,24 @@ afterAll(async () => {
 
 describe('Auth API', () => {
   test('User registration', async () => {
-    const res = await request(app)
-      .post('/api/register')
-      .send({
-        username: 'testuser',
-        email: 'test@example.com',
-        password: 'password123'
-      });
-    expect(res.statusCode).toBe(201);
+  const res = await request(app)
+    .post('/api/register')
+    .send({
+      username: 'testuser',
+      email: 'test@example.com',
+      password: 'password123'
+    });
+  
+  // Debug output
+  console.log('Registration response:', {
+    status: res.status,
+    body: res.body
   });
+
+  expect(res.statusCode).toBe(201);
+  expect(res.body).toHaveProperty('_id');
+  expect(res.body).toHaveProperty('username', 'testuser');
+});
 
   test('User login', async () => {
     // Create test user first
