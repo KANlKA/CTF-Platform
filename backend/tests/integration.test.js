@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
-const createTestApp = require('./testApp'); // Make sure this exports properly
+const createTestApp = require('./testApp');
 let app;
 let mongoServer;
 
@@ -37,7 +37,7 @@ afterEach(async () => {
 });
 
 describe('Auth API', () => {
-  let testUser = {
+  const testUser = {
     username: `testuser${Date.now()}`,
     email: `test${Date.now()}@example.com`,
     password: 'Password123!'
@@ -53,10 +53,10 @@ describe('Auth API', () => {
   });
 
   test('User login', async () => {
-    // First register the user
+    // First register
     await request(app).post('/api/register').send(testUser);
-  
-    // Then test login
+    
+    // Then login
     const res = await request(app)
       .post('/api/login')
       .send({
@@ -71,20 +71,19 @@ describe('Auth API', () => {
 
 describe('Challenges API', () => {
   let authToken;
-  let userId;
 
   beforeEach(async () => {
-    // Create test user directly through the API
-    const username = 'challengeuser-' + Date.now();
-    const email = `challenge-${Date.now()}@test.com`;
-    const password = 'Password123!';
+    // Register test user
+    const testUser = {
+      username: `challengeuser${Date.now()}`,
+      email: `challenge${Date.now()}@test.com`,
+      password: 'Password123!'
+    };
     
-    // Register user
     const regRes = await request(app)
       .post('/api/register')
-      .send({ username, email, password });
+      .send(testUser);
     
-    userId = regRes.body.user.id;
     authToken = regRes.body.token;
   });
 
@@ -93,7 +92,7 @@ describe('Challenges API', () => {
       .post('/api/challenges')
       .set('Authorization', `Bearer ${authToken}`)
       .send({
-        title: 'Test Challenge ' + Date.now(),
+        title: `Test Challenge ${Date.now()}`,
         description: 'This is a test challenge',
         category: 'web',
         difficulty: 'easy',
