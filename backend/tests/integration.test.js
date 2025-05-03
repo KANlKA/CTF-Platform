@@ -4,6 +4,16 @@ const { User, Challenge } = require('../routes'); // Changed from '../backend/mo
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+jest.mock('openai', () => jest.fn().mockImplementation(() => ({
+  chat: {
+    completions: {
+      create: jest.fn().mockResolvedValue({
+        choices: [{ message: { content: "Test hint" } }]
+      })
+    }
+  }
+})));
+
 const initTestApp = require('./testApp');
 let app;
 
