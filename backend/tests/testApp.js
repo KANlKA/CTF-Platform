@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const routes = require('../routes'); 
+process.env.OPENAI_API_KEY = 'mock-key'; // Add this line
+const routes = require('../routes');
 
 async function initTestApp() {
   // Connect to test database (remove deprecated options)
