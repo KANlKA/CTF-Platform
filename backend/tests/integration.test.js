@@ -1,5 +1,6 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
+const { User, Challenge } = require('../models');// Import models directly
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -8,22 +9,10 @@ let app;
 
 beforeAll(async () => {
   app = await initTestApp();
-  
-  // Initialize collections if they don't exist
-  await mongoose.connection.db.collection('users').createIndex({ username: 1 }, { unique: true });
-  await mongoose.connection.db.collection('challenges').createIndex({ title: 1 }, { unique: true });
-});
+}, 30000); // 30s timeout
 
 afterAll(async () => {
-  await mongoose.connection.close();
-});
-
-afterEach(async () => {
-  // Skip cleanup if not connected
-  if (mongoose.connection.readyState !== 1) return;
-  
-  await mongoose.connection.db.collection('users').deleteMany({});
-  await mongoose.connection.db.collection('challenges').deleteMany({});
+  await mongoose.disconnect();
 });
 
 describe('Auth API', () => {
@@ -33,55 +22,67 @@ describe('Auth API', () => {
       .send({
         username: 'testuser',
         email: 'test@example.com',
-        password: 'Password123!'
+        password: 'password123'
       });
     expect(res.statusCode).toBe(201);
   });
 
   test('User login', async () => {
-    // Create test user directly
-    await mongoose.connection.db.collection('users').insertOne({
+    // Create test user first
+    await User.create({
       username: 'loginuser',
       email: 'login@test.com',
-      password: await bcrypt.hash('Password123!', 10)
+      password: await bcrypt.hash('password123', 10)
     });
 
     const res = await request(app)
       .post('/api/login')
       .send({
         username: 'loginuser',
-        password: 'Password123!'
+        password: 'password123'
       });
     expect(res.statusCode).toBe(200);
   });
 });
 
 describe('Challenges API', () => {
-  let authToken;
-
-  beforeEach(async () => {
-    // Create test user and get token
-    const user = {
-      username: 'challengeuser',
-      email: 'challenge@test.com',
-      password: await bcrypt.hash('Password123!', 10),
-      role: 'admin'
-    };
-    await mongoose.connection.db.collection('users').insertOne(user);
-    authToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-  });
-
-  test('Create challenge', async () => {
-    const res = await request(app)
-      .post('/api/challenges')
-      .set('Authorization', `Bearer ${authToken}`)
-      .send({
+    let authToken;
+    let userId;
+  
+    beforeEach(async () => {
+      // Create test user
+      const user = await User.create({
+        username: 'challengeuser',
+        email: 'challenge@test.com',
+        password: await bcrypt.hash('password123', 10),
+        points: 1000 // Ensure user has enough points
+      });
+      userId = user._id;
+      authToken = jwt.sign({ id: userId }, process.env.JWT_SECRET);
+    });
+  
+    test('Create challenge', async () => {
+      const challengeData = {
         title: 'Test Challenge',
-        description: 'This is a test challenge',
+        description: 'This is a test challenge with proper length',
         category: 'web',
         difficulty: 'easy',
-        flag: 'flag{test-flag}'
+        flag: 'flag{test-flag}',
+        hints: [] // Add empty hints array if required
+      };
+  
+      const res = await request(app)
+        .post('/api/challenges')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(challengeData);
+  
+      console.log('Challenge creation response:', {
+        status: res.status,
+        body: res.body
       });
-    expect(res.statusCode).toBe(201);
+  
+      expect(res.statusCode).toBe(201);
+      expect(res.body).toHaveProperty('_id');
+      expect(res.body.author).toBe(userId.toString());
+    });
   });
-});
