@@ -2,19 +2,14 @@ const mongoose = require('mongoose');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const authRoutes = require('../routes/auth');
-const challengeRoutes = require('../routes/challenges');
-const errorHandler = require('../middleware/errorHandler');
+const routes = require('../backend/routes');
+const { errorHandler } = require('../backend/middleware');
 
-// Initialize test app
 async function initTestApp() {
   // Connect to test database
   await mongoose.connect(process.env.TEST_DB_URI || 'mongodb://localhost:27017/testdb', {
-    auth: {
-      username: process.env.DB_USER,
-      password: process.env.DB_PASS
-    },
-    authSource: 'admin'
+    useNewUrlParser: true,
+    useUnifiedTopology: true
   });
 
   // Create express app
@@ -24,9 +19,8 @@ async function initTestApp() {
   app.use(cors());
   app.use(bodyParser.json());
 
-  // Routes
-  app.use('/api/auth', authRoutes);
-  app.use('/api/challenges', challengeRoutes);
+  // Use all routes from your consolidated routes file
+  app.use('/', routes);
 
   // Error handling
   app.use(errorHandler);
