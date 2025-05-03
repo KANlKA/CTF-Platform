@@ -4,17 +4,6 @@ const { User, Challenge } = require('../models'); // Make sure this path is corr
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// Mock OpenAI if needed
-jest.mock('openai', () => ({
-  chat: {
-    completions: {
-      create: jest.fn().mockResolvedValue({
-        choices: [{ message: { content: "Test hint" } }]
-      })
-    }
-  }
-}));
-
 const initTestApp = require('./testApp');
 let app;
 
