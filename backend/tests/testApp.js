@@ -8,8 +8,10 @@ async function initTestApp() {
   app.use(cors());
   app.use(bodyParser.json());
   
-  // Connect to MongoDB with auth
-  await mongoose.connect(process.env.TEST_DB_URI, {
+  // Use default test DB if env var not set
+  const dbUri = process.env.TEST_DB_URI || 'mongodb://localhost:27017/testdb';
+  
+  await mongoose.connect(dbUri, {
     serverSelectionTimeoutMS: 5000
   });
   
