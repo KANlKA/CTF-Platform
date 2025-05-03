@@ -1,13 +1,15 @@
-name: Docker Build & Push
+name: Build and Push Docker Images
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 env:
   REGISTRY: ghcr.io
-  FRONTEND_IMAGE: ctf-platform-frontend  # Ensure it is lowercase and follows Docker's naming conventions
-  BACKEND_IMAGE: ctf-platform-backend   # Ensure it is lowercase and follows Docker's naming conventions
+  OWNER: kanlka  # Replace with your actual GitHub username (must be lowercase)
+  FRONTEND_IMAGE: ctf-platform-frontend
+  BACKEND_IMAGE: ctf-platform-backend
 
 jobs:
   build-and-push:
@@ -17,30 +19,26 @@ jobs:
       packages: write
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Log in to GHCR
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build and push frontend
-      - name: Build Frontend
+      - name: Build and Push Frontend Image
         uses: docker/build-push-action@v3
         with:
-          context: ./frontend  # Path to frontend Dockerfile
-          push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE | lower }}:latest
-          labels: "app=frontend"
+          context: ./frontend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.FRONTEND_IMAGE }}:latest
 
-      # Build and push backend
-      - name: Build Backend
+      - name: Build and Push Backend Image
         uses: docker/build-push-action@v3
         with:
-          context: ./backend  # Path to backend Dockerfile
-          push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE | lower }}:latest
-          labels: "app=backend"
+          context: ./backend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.BACKEND_IMAGE }}:latest
