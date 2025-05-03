@@ -20,10 +20,10 @@ jobs:
           MONGO_INITDB_ROOT_USERNAME: root
           MONGO_INITDB_ROOT_PASSWORD: example
         options: >-
-          --health-cmd "echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd="echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     strategy:
       matrix:
@@ -58,5 +58,4 @@ jobs:
       with:
         name: test-results
         path: |
-          test-results/**/*
-          coverage/
+          coverage
