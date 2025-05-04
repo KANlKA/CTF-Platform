@@ -1,0 +1,7 @@
+Copyright (c) 2025 KANIKA CHAUDA
+
+All rights reserved.
+
+This code is protected under copyright law. You may not copy, distribute, modify, or use any part of this codebase without explicit written permission from the author.
+
+Unauthorized use of this code in any form is strictly prohibited.
