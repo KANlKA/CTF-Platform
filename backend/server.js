@@ -2,6 +2,7 @@ require('dotenv').config();
 const isTestEnv = process.env.NODE_ENV === 'test';
 const express = require('express');
 const mongoose = require('mongoose');
+app.set('trust proxy', 1);
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
