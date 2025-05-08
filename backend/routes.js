@@ -38,10 +38,13 @@ const MAX_PAGE_SIZE = 50;
 const MAX_TAGS = 5;
 const MAX_TAG_LENGTH = 20;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
+let openai;
+if (process.env.NODE_ENV !== 'test') {
+  const OpenAI = require('openai');
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 // Helper functions
 
 async function generateAIHint(challenge) {
