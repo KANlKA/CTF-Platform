@@ -21,11 +21,15 @@ const corsOptions = {
   credentials: true
 };
 app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
+// allow preflight
 
-// Essential middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(limiter);
+
+// Apply limiter only to API routes
+app.use('/api', limiter);
+
 // In your backend routes
 app.get('/api/data', (req, res) => {
   res.json({ message: "Connected successfully!" });
@@ -45,6 +49,7 @@ if (!isTestEnv) {
 
 // Serve static files
 app.use('/avatars', express.static('uploads/avatars'));
+app.use('/challenge-files', express.static('uploads/challenges'));
 
 // Use routes
 app.use('/', routes);

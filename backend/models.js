@@ -5,11 +5,13 @@ const bcrypt = require('bcryptjs');
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  password: { type: String },
+  googleId: { type: String, unique: true, sparse: true },
   displayName: { type: String, default: '' },
   bio: { type: String, default: '' },
   todoChallenges: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Challenge' }],
   solvedChallenges: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Challenge' }],
+  createdChallenges: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Challenge' }],
   points: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
   avatar: { 
@@ -21,6 +23,7 @@ const UserSchema = new mongoose.Schema({
     twitter: String,
     website: String
   },
+  role: { type: String, enum: ['user', 'admin'], default: 'user' },
 });
 
 const ChallengeSchema = new mongoose.Schema({
@@ -44,11 +47,7 @@ const ChallengeSchema = new mongoose.Schema({
     enum: ['easy', 'medium', 'hard'], 
     required: true 
   },
-  createdChallenges: [{ 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Challenge' 
-  }],
-  points: { 
+  points: {
     type: Number, 
     required: true,
     min: 0
@@ -75,6 +74,12 @@ const ChallengeSchema = new mongoose.Schema({
   hints: [{
     text: String,
     cost: { type: Number, default: 50 }
+  }],
+  files: [{
+    filename: String,
+    originalName: String,
+    size: Number,
+    mimetype: String,
   }],
 }, {
   toJSON: { virtuals: true },

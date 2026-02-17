@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import api from '../api';
-import { XMarkIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, PlusIcon, PaperClipIcon } from '@heroicons/react/24/outline';
 
 const categories = [
   'web', 'crypto', 'pwn', 'forensics', 
@@ -29,9 +29,11 @@ export default function CreateChallenge() {
     }]
   });
   
+  const [files, setFiles] = useState([]);
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -50,38 +52,49 @@ export default function CreateChallenge() {
     return newErrors;
   };
 
+  const handleFileChange = (e) => {
+    const selected = Array.from(e.target.files);
+    setFiles(prev => {
+      const existing = new Set(prev.map(f => f.name + f.size));
+      return [...prev, ...selected.filter(f => !existing.has(f.name + f.size))];
+    });
+    e.target.value = '';
+  };
+
+  const removeFile = (index) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-  
+
     setIsSubmitting(true);
     try {
-      // Get current user ID
-      const userRes = await api.get('/api/profile');
-      const userId = userRes.data._id;
-      
-      await api.post('/api/challenges', {
-        ...form,
-        author: userId // Include author ID
+      const formData = new FormData();
+      formData.append('title', form.title);
+      formData.append('description', form.description);
+      formData.append('category', form.category);
+      formData.append('difficulty', form.difficulty);
+      formData.append('flag', form.flag);
+      formData.append('hints', JSON.stringify(form.hints));
+      files.forEach(f => formData.append('files', f));
+
+      await api.post('/api/challenges', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-      
+
       setMessage('Challenge created successfully!');
-      setForm({ 
-        title: '', 
-        description: '', 
-        category: 'web', 
-        difficulty: 'easy', 
-        flag: '',
-        hints: []
-      });
+      setForm({ title: '', description: '', category: 'web', difficulty: 'easy', flag: '', hints: [] });
+      setFiles([]);
       setErrors({});
     } catch (err) {
-      // error handling
+      setMessage(err.response?.data?.message || 'Challenge creation failed.');
     } finally {
       setIsSubmitting(false);
     }
@@ -204,6 +217,50 @@ export default function CreateChallenge() {
                 This is the solution participants need to submit (minimum 3 characters)
               </p>
             </div>
+            {/* File Attachments */}
+            <div className="space-y-2">
+              <label className="block text-gray-300 font-medium">Attachments</label>
+              <div
+                className="border-2 border-dashed border-[#1e2a47] rounded-lg p-4 text-center cursor-pointer hover:border-[#64ffda] transition-colors"
+                onClick={() => fileInputRef.current.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const dropped = Array.from(e.dataTransfer.files);
+                  setFiles(prev => {
+                    const existing = new Set(prev.map(f => f.name + f.size));
+                    return [...prev, ...dropped.filter(f => !existing.has(f.name + f.size))];
+                  });
+                }}
+              >
+                <PaperClipIcon className="h-6 w-6 mx-auto mb-1 text-gray-400" />
+                <p className="text-gray-400 text-sm">Drop files here or <span className="text-[#64ffda]">browse</span></p>
+                <p className="text-gray-500 text-xs mt-1">ZIP, binaries, images, PDFs — up to 50 MB each</p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              {files.length > 0 && (
+                <ul className="space-y-1 mt-2">
+                  {files.map((f, i) => (
+                    <li key={i} className="flex items-center justify-between bg-[#0a192f] border border-[#1e2a47] rounded px-3 py-2 text-sm">
+                      <span className="text-gray-300 truncate max-w-[75%]">{f.name}</span>
+                      <span className="flex items-center gap-3">
+                        <span className="text-gray-500 text-xs">{(f.size / 1024).toFixed(1)} KB</span>
+                        <button type="button" onClick={() => removeFile(i)} className="text-red-400 hover:text-red-300">
+                          <XMarkIcon className="h-4 w-4" />
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <div className="space-y-4">
   <h3 className="text-lg font-medium text-gray-300">Hints</h3>
   {form.hints.map((hint, index) => (

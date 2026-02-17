@@ -9,9 +9,13 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const OpenAI = require('openai');
+const { OAuth2Client } = require('google-auth-library');
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const {
   authenticateToken,
+  isAdmin,
   uploadAvatar,
+  challengeUpload,
   validateImageType,
   validateChallengeSubmission,
   validateChallenge,
@@ -42,7 +46,8 @@ let openai;
 if (process.env.NODE_ENV !== 'test') {
   const OpenAI = require('openai');
   openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1',
   });
 }
 // Helper functions
@@ -135,23 +140,20 @@ router.post('/api/register', [
       let conflictField = '';
       if (existingUser.username === username) conflictField = 'username';
       if (existingUser.email === email) conflictField = 'email';
-      
-      return res.status(400).json({ 
-        message: `${conflictField} is already taken` 
+
+      return res.status(400).json({
+        message: `${conflictField} is already taken`
       });
     }
-    
-    if (await User.findOne({ $or: [{ email }, { username }] })) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
 
-    const user = new User({ username, email, password: await bcrypt.hash(password, 10) });
+    const role = email === process.env.ADMIN_EMAIL ? 'admin' : 'user';
+    const user = new User({ username, email, password: await bcrypt.hash(password, 10), role });
     await user.save();
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
-    
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+
     res.status(201).json({
       token,
-      user: { id: user._id, username: user.username, email: user.email }
+      user: { id: user._id, username: user.username, email: user.email, role: user.role }
     });
   } catch (err) {
     res.status(500).json({ message: 'Registration failed' });
@@ -173,8 +175,8 @@ router.post('/api/login', [
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
-    
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+
     res.status(200).json({
       token,
       user: {
@@ -183,7 +185,8 @@ router.post('/api/login', [
         email: user.email,
         displayName: user.displayName,
         bio: user.bio,
-        points: user.points
+        points: user.points,
+        role: user.role
       }
     });
   } catch (err) {
@@ -193,6 +196,81 @@ router.post('/api/login', [
 
 router.post('/api/logout', (req, res) => {
   res.status(200).json({ message: 'Logged out successfully' });
+});
+
+// Google OAuth Route
+router.post('/api/auth/google', async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ message: 'Missing Google ID token' });
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    const googleId = payload.sub;
+    const email = payload.email;
+    const name = payload.name;
+    const picture = payload.picture;
+
+    let user = await User.findOne({
+      $or: [{ googleId }, { email }]
+    });
+
+    const isAdminEmail = email === process.env.ADMIN_EMAIL;
+
+    if (!user) {
+      const baseUsername = name.replace(/\s+/g, '').toLowerCase();
+      let username = baseUsername;
+      let counter = 1;
+
+      while (await User.findOne({ username })) {
+        username = `${baseUsername}${counter++}`;
+      }
+
+      user = new User({
+        username,
+        email,
+        googleId,
+        avatar: picture || 'default_avatar.png',
+        role: isAdminEmail ? 'admin' : 'user',
+      });
+
+      await user.save();
+    } else {
+      let changed = false;
+      if (!user.googleId) { user.googleId = googleId; changed = true; }
+      if (isAdminEmail && user.role !== 'admin') { user.role = 'admin'; changed = true; }
+      if (changed) await user.save();
+    }
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        points: user.points,
+        role: user.role,
+      },
+    });
+
+  } catch (err) {
+    console.error('Google auth error:', err);
+    res.status(403).json({ message: 'Google authentication failed' });
+  }
 });
 
 // Password Reset Routes
@@ -359,36 +437,60 @@ router.put('/api/profile/password', authenticateToken, [
 });
 
 // Challenge Routes
-router.post('/api/challenges', createChallengeLimiter, authenticateToken, [
-  check('title').isLength({ min: 5 }),
-  check('description').isLength({ min: 20 }),
-  check('category').notEmpty(),
-  check('difficulty').isIn(['easy', 'medium', 'hard']),
-  check('flag').isLength({ min: 3 })
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+router.post('/api/challenges',
+  createChallengeLimiter,
+  authenticateToken,
+  isAdmin,
+  challengeUpload.array('files', 10),
+  [
+    check('title').isLength({ min: 5 }),
+    check('description').isLength({ min: 20 }),
+    check('category').notEmpty(),
+    check('difficulty').isIn(['easy', 'medium', 'hard']),
+    check('flag').isLength({ min: 3 })
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  try {
-    const challenge = new Challenge({
-      ...req.body,
-      points: calculatePoints(req.body.difficulty),
-      author: req.user.id,
-      solves: 0
-    });
+    try {
+      let hints = [];
+      if (req.body.hints) {
+        try { hints = JSON.parse(req.body.hints); } catch (_) { hints = []; }
+      }
 
-    await challenge.save();
-    
-    // Add to user's created challenges
-    await User.findByIdAndUpdate(req.user.id, {
-      $push: { createdChallenges: challenge._id }
-    });
+      const files = (req.files || []).map(f => ({
+        filename: f.filename,
+        originalName: f.originalname,
+        size: f.size,
+        mimetype: f.mimetype,
+      }));
 
-    res.status(201).json(challenge);
-  } catch (err) {
-    res.status(500).json({ message: 'Challenge creation failed' });
+      const challenge = new Challenge({
+        title: req.body.title,
+        description: req.body.description,
+        category: req.body.category,
+        difficulty: req.body.difficulty,
+        flag: req.body.flag,
+        hints,
+        files,
+        points: calculatePoints(req.body.difficulty),
+        author: req.user.id,
+        solves: 0,
+      });
+
+      await challenge.save();
+
+      await User.findByIdAndUpdate(req.user.id, {
+        $push: { createdChallenges: challenge._id }
+      });
+
+      res.status(201).json(challenge);
+    } catch (err) {
+      res.status(500).json({ message: 'Challenge creation failed' });
+    }
   }
-});
+);
 router.get('/api/challenges', async (req, res) => {
   try {
     const challenges = await Challenge.find()
@@ -728,26 +830,21 @@ router.get('/api/leaderboard', async (req, res) => {
     
     // If we have the current user and they're not in the top 50,
     // fetch their rank separately and possibly add them to the results
-    let currentUserAdded = false;
     if (currentUserId) {
-      const currentUserInList = users.some(user => 
+      const currentUserInList = users.some(user =>
         user._id.toString() === currentUserId.toString()
       );
-      
+
       if (!currentUserInList) {
         const currentUser = await User.findById(currentUserId)
           .select('username points solvedChallenges createdAt');
-          
+
         if (currentUser) {
-          // Calculate the current user's rank
           const rank = await User.countDocuments({ points: { $gt: currentUser.points } }) + 1;
-          
-          // Add the current user to the results with their rank
           users.push({
             ...currentUser.toObject(),
             rank
           });
-          currentUserAdded = true;
         }
       }
     }

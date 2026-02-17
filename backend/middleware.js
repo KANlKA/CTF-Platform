@@ -1,5 +1,6 @@
 // middleware.js
-const mongoose = require('mongoose'); 
+const mongoose = require('mongoose');
+const { Challenge } = require('./models');
 const { check, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
@@ -55,7 +56,7 @@ const submitLimiter = rateLimit({
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  
+
   if (!token) return res.status(401).json({ message: 'Authentication required' });
 
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
@@ -63,6 +64,13 @@ const authenticateToken = (req, res, next) => {
     req.user = user;
     next();
   });
+};
+
+const isAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
 };
 
 // Image upload middleware
@@ -120,10 +128,30 @@ function getGeneralCTFAdvice() {
   return `GENERAL CTF TIPS:\n• ${randomTips.join('\n• ')}`;
 }
 
-const uploadAvatar = multer({ 
+const uploadAvatar = multer({
   storage: avatarStorage,
   fileFilter: avatarFilter,
   limits: { fileSize: 2 * 1024 * 1024 }
+});
+
+// Challenge file upload (zip, binaries, images, etc.)
+const challengeStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = 'uploads/challenges/';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `challenge-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const challengeUpload = multer({
+  storage: challengeStorage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB per file
 });
 
 // Validation middleware
@@ -239,7 +267,9 @@ module.exports = {
   createChallengeLimiter,
   submitLimiter,
   authenticateToken,
+  isAdmin,
   uploadAvatar,
+  challengeUpload,
   validateImageType,
   getPredefinedResponse,
   getGeneralCTFAdvice,

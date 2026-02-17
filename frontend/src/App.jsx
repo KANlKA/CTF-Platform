@@ -24,7 +24,7 @@ const RequireAuth = ({ children, user }) => {
 
 // Admin wrapper component
 const RequireAdmin = ({ children, user }) => {
-  return user?.isAdmin ? children : <Navigate to="/" replace />;
+  return user?.role === 'admin' ? children : <Navigate to="/" replace />;
 };
 
 // Guest wrapper component
@@ -210,11 +210,11 @@ const AppContent = () => {
             </RequireAuth>
           } />
           <Route path="/challenges/create" element={
-            <RequireAuth user={user}>
-              <CreateChallenge 
+            <RequireAdmin user={user}>
+              <CreateChallenge
                 refreshChallenges={refreshChallenges}
               />
-            </RequireAuth>
+            </RequireAdmin>
           } />
           <Route path="/profile" element={
             <RequireAuth user={user}>

@@ -54,7 +54,7 @@ export default function Navbar({ user, onLogout, toggleChatbot, showChatbot }) {
                 Discussions
               </Link>
             )}
-            {user && (
+            {user?.role === 'admin' && (
               <Link to="/challenges/create" className="hover:text-white transition-colors font-medium">
                 <PlusCircleIcon className="h-5 w-5 inline md:hidden" />
                 <span className="hidden md:inline">Create</span>
