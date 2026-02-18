@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment files — never commit real secrets
+.env
+.env.local
+.env.production
+
+# Build outputs
+dist/
+build/
+
+# Uploaded files (use a Docker volume or object storage in production)
+uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / IDE
+.DS_Store
+.vscode/

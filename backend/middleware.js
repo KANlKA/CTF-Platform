@@ -76,7 +76,7 @@ const isAdmin = (req, res, next) => {
 // Image upload middleware
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = 'uploads/avatars/';
+    const uploadDir = path.join(__dirname, 'uploads/avatars/');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -137,7 +137,7 @@ const uploadAvatar = multer({
 // Challenge file upload (zip, binaries, images, etc.)
 const challengeStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = 'uploads/challenges/';
+    const uploadDir = path.join(__dirname, 'uploads/challenges/');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }

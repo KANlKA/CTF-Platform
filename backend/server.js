@@ -4,7 +4,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 5000;
 app.set('trust proxy', 1); 
@@ -14,8 +13,12 @@ const { migrateChallenges } = require('./models');
 const { limiter } = require('./middleware');
 
 // Enhanced CORS configuration
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map(u => u.trim())
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
 const corsOptions = {
-  origin: ['http://localhost:3000', 'http://localhost:5173'],
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
@@ -48,8 +51,8 @@ if (!isTestEnv) {
 }
 
 // Serve static files
-app.use('/avatars', express.static('uploads/avatars'));
-app.use('/challenge-files', express.static('uploads/challenges'));
+app.use('/avatars', express.static(path.join(__dirname, 'uploads/avatars')));
+app.use('/challenge-files', express.static(path.join(__dirname, 'uploads/challenges')));
 
 // Use routes
 app.use('/', routes);
